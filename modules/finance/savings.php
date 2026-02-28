@@ -46,10 +46,7 @@ require_once '../../includes/header_finance.php';
                     <i class="fas fa-user mr-1"></i> Per Siswa
                 </button>
                 <button @click="mode = 'batch'" :class="mode === 'batch' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-500 hover:bg-slate-50'" class="flex-1 py-2 text-xs rounded-lg transition-colors">
-                    <i class="fas fa-users mr-1"></i> Input Massal
-                </button>
-                <button @click="mode = 'scan'" :class="mode === 'scan' ? 'bg-blue-50 text-blue-600 font-bold' : 'text-slate-500 hover:bg-slate-50'" class="flex-1 py-2 text-xs rounded-lg transition-colors">
-                    <i class="fas fa-barcode mr-1"></i> Scan
+                    <i class="fas fa-users mr-1"></i> Input Massal (Scan)
                 </button>
             </div>
 
@@ -79,6 +76,18 @@ require_once '../../includes/header_finance.php';
                     </select>
                 </div>
                 
+                <!-- Scan Input in Locked Batch Mode -->
+                <div v-if="isBatchLocked" class="mt-4 pt-4 border-t border-slate-200 animate-fade">
+                    <label class="block text-xs font-bold text-blue-500 uppercase mb-2">SCAN BARCODE / NIS</label>
+                    <div class="relative">
+                        <i class="fas fa-barcode absolute left-3 top-3 text-slate-400"></i>
+                        <input type="text" ref="batchScanInput" v-model="batchScanQuery" @keyup.enter="handleBatchScan" 
+                            placeholder="Scan kartu siswa..." 
+                            class="w-full pl-10 pr-4 py-2 bg-blue-50 border border-blue-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <p class="text-[10px] text-blue-400 mt-1 italic">* Scan untuk langsung mengisi nominal</p>
+                </div>
+
                 <!-- Action Buttons -->
                 <div class="pt-2">
                     <button v-if="!isBatchLocked" @click="lockBatch" :disabled="!batchClassId" class="w-full bg-blue-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-50 transition-all shadow-sm">
@@ -105,45 +114,7 @@ require_once '../../includes/header_finance.php';
                 </div>
             </div>
             
-            <!-- Scan Mode Panel -->
-            <div v-else-if="mode === 'scan'" class="p-4 border-b border-slate-100 space-y-3">
-                <div class="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                    <label class="block text-xs font-bold text-blue-500 uppercase mb-2">SCAN BARCODE / KETIK NIS</label>
-                    <input type="text" ref="scanInput" v-model="scanQuery" @keyup.enter="handleScan" 
-                        placeholder="Scan kartu siswa..." 
-                        class="w-full px-3 py-2 bg-white border border-blue-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <p class="text-[10px] text-blue-400 mt-1">* Tekan Enter setelah scan</p>
-                </div>
-
-                <div v-if="scannedStudent" class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm animate-fade">
-                    <div class="flex justify-between items-start mb-2">
-                        <div>
-                            <div class="font-bold text-slate-700 text-sm">{{ scannedStudent.name }}</div>
-                            <div class="text-xs text-slate-500">{{ scannedStudent.class_name }}</div>
-                        </div>
-                        <button @click="resetScan" class="text-slate-400 hover:text-red-500"><i class="fas fa-times"></i></button>
-                    </div>
-                    
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nominal Setoran</label>
-                    <input type="number" ref="amountInput" v-model="scanAmount" @keyup.enter="addToStaging"
-                        placeholder="0" 
-                        class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-bold text-right focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500">
-                    
-                    <button @click="addToStaging" class="w-full mt-2 bg-green-600 text-white py-1.5 rounded-lg text-xs font-bold hover:bg-green-700 shadow-sm">
-                        <i class="fas fa-plus mr-1"></i> TAMBAH KE LIST
-                    </button>
-                </div>
-
-                <div v-if="stagingList.length > 0" class="pt-2 border-t border-slate-100">
-                     <div class="text-xs text-slate-500 flex justify-between mb-1">
-                        <span>Total Scan</span>
-                        <span class="font-bold text-blue-600">Rp {{ formatNumber(stagingTotal) }}</span>
-                     </div>
-                     <button @click="submitStaging" :disabled="isSubmitting" class="w-full bg-blue-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-50 shadow-sm shadow-blue-100">
-                        <i class="fas fa-save mr-1"></i> SIMPAN SEMUA ({{ stagingList.length }})
-                     </button>
-                </div>
-            </div>
+            <!-- Scan Mode Panel (REMOVED) -->
             
             <!-- List (Single Mode) -->
             <div v-if="mode === 'single'" class="flex-1 overflow-y-auto p-2 space-y-1">
@@ -172,44 +143,8 @@ require_once '../../includes/header_finance.php';
         <!-- RIGHT PANEL: DETAILS -->
         <div class="flex-1 bg-slate-50 overflow-hidden flex flex-col relative">
             
-            <!-- SCAN MODE UI -->
-            <div v-if="mode === 'scan'" class="flex-1 flex flex-col overflow-hidden bg-slate-50">
-                <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
-                    <h3 class="font-bold text-slate-700">Daftar Scan Staging</h3>
-                    <div class="text-xs text-slate-500">
-                        {{ stagingList.length }} Transaksi
-                    </div>
-                </div>
-                
-                <div class="flex-1 overflow-y-auto p-4">
-                    <div v-if="stagingList.length === 0" class="h-full flex flex-col items-center justify-center text-slate-400">
-                        <i class="fas fa-barcode text-4xl mb-4 text-slate-300"></i>
-                        <p>Belum ada data scan.</p>
-                        <p class="text-xs">Scan kartu siswa di panel kiri untuk memulai.</p>
-                    </div>
-
-                    <div v-else class="grid grid-cols-1 gap-2">
-                        <div v-for="(item, idx) in stagingList" :key="idx" class="bg-white p-3 rounded-lg shadow-sm border border-slate-100 flex justify-between items-center animate-fade">
-                            <div class="flex items-center gap-3">
-                                <div class="w-8 h-8 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
-                                    {{ idx + 1 }}
-                                </div>
-                                <div>
-                                    <div class="font-bold text-slate-700 text-sm">{{ item.name }}</div>
-                                    <div class="text-[10px] text-slate-400 font-mono">{{ item.nis }}</div>
-                                </div>
-                            </div>
-                            <div class="flex items-center gap-4">
-                                <div class="font-bold text-green-600 font-mono text-sm">Rp {{ formatNumber(item.amount) }}</div>
-                                <button @click="removeFromStaging(idx)" class="text-slate-300 hover:text-red-500 transition-colors">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+            <!-- SCAN MODE UI (REMOVED) -->
+            
             <!-- BATCH MODE UI -->
             <div v-else-if="mode === 'batch'" class="flex-1 flex flex-col overflow-hidden">
                 <div v-if="!isBatchLocked" class="flex-1 flex flex-col items-center justify-center text-slate-400">
@@ -251,9 +186,12 @@ require_once '../../includes/header_finance.php';
                                         {{ formatNumber(s.balance) }}
                                     </td>
                                     <td class="px-4 py-3">
-                                        <input type="number" v-model.number="s.input_amount" min="0" 
+                                        <input type="number" 
+                                            :id="'batch-input-' + s.id"
+                                            v-model.number="s.input_amount" min="0" 
                                             class="w-full px-3 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-bold text-right" 
-                                            placeholder="0">
+                                            placeholder="0"
+                                            @keydown.enter.prevent="$refs.batchScanInput.focus()">
                                     </td>
                                     <td class="px-4 py-3">
                                         <input type="text" v-model="s.note" 
@@ -422,8 +360,9 @@ createApp({
             batchClassId: '',
             batchStudents: [],
             isBatchLocked: false,
+            batchScanQuery: '',
             
-            // Scan Mode Data
+            // Scan Mode Data (Legacy Removed)
             scanQuery: '',
             scannedStudent: null,
             scanAmount: '',
@@ -604,6 +543,7 @@ createApp({
         unlockBatch() {
             this.isBatchLocked = false
             this.batchStudents = []
+            this.batchScanQuery = ''
         },
         async fetchClassStudents() {
             if (!this.batchClassId) return
@@ -624,10 +564,46 @@ createApp({
                             note: saved ? saved.note : ''
                         }
                     })
+                    
+                    // Auto focus scan input if locked
+                    if (this.isBatchLocked) {
+                        this.$nextTick(() => {
+                            this.$refs.batchScanInput?.focus()
+                        })
+                    }
                 }
             } catch (e) {
                 alert('Gagal mengambil data siswa')
                 this.isBatchLocked = false
+            }
+        },
+        handleBatchScan() {
+            if (!this.batchScanQuery) return
+            
+            // Cari siswa di list yang sudah ada (local search)
+            // Support NIS (priority) atau Nama
+            const query = this.batchScanQuery.toLowerCase()
+            const student = this.batchStudents.find(s => 
+                s.identity_number === this.batchScanQuery || 
+                s.name.toLowerCase().includes(query)
+            )
+            
+            if (student) {
+                this.batchScanQuery = '' // Clear input
+                
+                // Pindah fokus ke input nominal siswa tersebut
+                this.$nextTick(() => {
+                    const el = document.getElementById('batch-input-' + student.id)
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                        el.focus()
+                        el.select() // Select text biar gampang replace
+                    }
+                })
+            } else {
+                alert(`Siswa dengan NIS/Nama "${this.batchScanQuery}" tidak ditemukan di kelas ini.`)
+                this.batchScanQuery = ''
+                this.$refs.batchScanInput.focus()
             }
         },
         async submitBatch() {
