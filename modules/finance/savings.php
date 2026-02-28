@@ -63,7 +63,7 @@ require_once '../../includes/header_finance.php';
             </div>
 
             <!-- Batch Mode Selectors -->
-            <div v-else class="p-4 border-b border-slate-100 space-y-3">
+            <div v-else-if="mode === 'batch'" class="p-4 border-b border-slate-100 space-y-3">
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Pilih Unit</label>
                     <select v-model="batchUnitId" @change="fetchClasses" :disabled="isBatchLocked" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed">
@@ -236,6 +236,12 @@ require_once '../../includes/header_finance.php';
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-slate-100">
+                                <tr v-if="batchStudents.length === 0">
+                                    <td colspan="4" class="px-4 py-8 text-center text-slate-400 italic">
+                                        <i class="fas fa-user-slash text-2xl mb-2"></i>
+                                        <p>Tidak ada siswa aktif di kelas ini.</p>
+                                    </td>
+                                </tr>
                                 <tr v-for="s in batchStudents" :key="s.id" class="hover:bg-slate-50">
                                     <td class="px-4 py-3">
                                         <div class="font-bold text-slate-700">{{ s.name }}</div>

@@ -204,31 +204,14 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
         ]);
     }
 
-    // 1.1 GET CLASSES (For Tariff Setting)
+    // 1.1 GET CLASSES (For Tariff Setting - REMOVED DUPLICATE)
+    // This block is now handled by action #43 at the bottom which is more robust.
+    // Keeping this commented out to prevent conflict.
+    /*
     if ($action == 'get_classes' && $method == 'GET') {
-        $year_id = $_GET['academic_year_id'] ?? '';
-        $unit_id = $_GET['unit_id'] ?? '';
-
-        $sql = "SELECT c.id, c.name, l.name as level_name 
-                FROM acad_classes c 
-                JOIN acad_class_levels l ON c.level_id = l.id 
-                WHERE 1=1";
-        $params = [];
-
-        if ($year_id) {
-            $sql .= " AND c.academic_year_id = ?";
-            $params[] = $year_id;
-        }
-        if ($unit_id) {
-            $sql .= " AND l.unit_id = ?";
-            $params[] = $unit_id;
-        }
-
-        $sql .= " ORDER BY l.order_index ASC, c.name ASC";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
-        jsonResponse(true, 'Found', $stmt->fetchAll());
+        // ... (Old logic)
     }
+    */
 
     // 1.2 GET TARIFFS
     if ($action == 'get_tariffs' && $method == 'GET') {
@@ -915,6 +898,11 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
         $class_id = $_GET['class_id'] ?? '';
         if (!$class_id) jsonResponse(false, 'Class ID diperlukan');
 
+        // Allow fetching students even if status is not strictly ACTIVE in current year?
+        // No, batch input should only be for ACTIVE students.
+        // But maybe we need to be lenient if academic year roll-over hasn't happened perfectly.
+        // Let's stick to ACTIVE for now.
+        
         $sql = "SELECT s.id, s.name, s.identity_number, 
                        COALESCE((SELECT balance_after FROM fin_student_savings WHERE student_id = s.id ORDER BY id DESC LIMIT 1), 0) as balance
                 FROM core_people s
@@ -927,17 +915,35 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
         jsonResponse(true, 'Data ditemukan', $stmt->fetchAll(PDO::FETCH_ASSOC));
     }
 
-    // 43. GET CLASSES (Helper for Dropdown)
+    // 43. GET CLASSES (Helper for Dropdown) - DEDUPED & IMPROVED
+    // Note: Removed the duplicate get_classes at line 208 if it existed there. 
+    // This block handles unit_id filter properly.
     if ($action == 'get_classes' && $method == 'GET') {
         $unit_id = $_GET['unit_id'] ?? '';
-        $sql = "SELECT c.id, c.name FROM acad_classes c 
+        $year_id = $_GET['academic_year_id'] ?? '';
+
+        // Auto-select active year if not provided
+        if (!$year_id) {
+            $stmtY = $pdo->query("SELECT id FROM acad_years WHERE status = 'ACTIVE' LIMIT 1");
+            $year_id = $stmtY->fetchColumn();
+        }
+
+        $sql = "SELECT c.id, c.name 
+                FROM acad_classes c 
                 JOIN acad_class_levels l ON c.level_id = l.id
                 WHERE 1=1";
         $params = [];
+        
         if ($unit_id) {
             $sql .= " AND l.unit_id = ?";
             $params[] = $unit_id;
         }
+        
+        if ($year_id) {
+            $sql .= " AND c.academic_year_id = ?";
+            $params[] = $year_id;
+        }
+
         $sql .= " ORDER BY c.name ASC";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
