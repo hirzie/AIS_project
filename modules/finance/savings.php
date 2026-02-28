@@ -146,7 +146,7 @@ require_once '../../includes/header_finance.php';
             <!-- SCAN MODE UI (REMOVED) -->
             
             <!-- BATCH MODE UI -->
-            <div v-else-if="mode === 'batch'" class="flex-1 flex flex-col overflow-hidden">
+            <div v-if="mode === 'batch'" class="flex-1 flex flex-col overflow-hidden">
                 <div v-if="!isBatchLocked" class="flex-1 flex flex-col items-center justify-center text-slate-400">
                     <i class="fas fa-users text-4xl mb-4 text-slate-300"></i>
                     <p v-if="!batchClassId">Pilih Unit dan Kelas untuk memulai input massal</p>
@@ -337,7 +337,9 @@ require_once '../../includes/header_finance.php';
             </div>
         </div>
     </div>
-</div>
+    </div>
+    <!-- End of #app -->
+</div> 
 
 <script>
 const { createApp } = Vue
@@ -412,101 +414,6 @@ createApp({
             return new Date(dateStr).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
         },
         
-        // --- SCAN METHODS ---
-        async handleScan() {
-            if (!this.scanQuery) return
-            try {
-                const res = await fetch(window.BASE_URL + `api/finance.php?action=search_students&q=${this.scanQuery}`)
-                const data = await res.json()
-                if (data.success && data.data.length > 0) {
-                    // Prioritaskan exact match NIS
-                    const exact = data.data.find(s => s.identity_number === this.scanQuery)
-                    this.scannedStudent = exact || data.data[0]
-                    
-                    this.scanQuery = '' // Clear input
-                    this.$nextTick(() => {
-                        this.$refs.amountInput.focus() // Pindah fokus ke nominal
-                    })
-                } else {
-                    alert('Siswa tidak ditemukan!')
-                    this.scanQuery = ''
-                }
-            } catch (e) {
-                console.error(e)
-            }
-        },
-        resetScan() {
-            this.scannedStudent = null
-            this.scanAmount = ''
-            this.$nextTick(() => {
-                this.$refs.scanInput.focus()
-            })
-        },
-        addToStaging() {
-            if (!this.scannedStudent || !this.scanAmount || this.scanAmount <= 0) {
-                alert('Nominal harus diisi!')
-                return
-            }
-            
-            // Cek duplikasi di staging (akumulasi jika ada)
-            const existing = this.stagingList.find(s => s.id === this.scannedStudent.id)
-            if (existing) {
-                existing.amount = Number(existing.amount) + Number(this.scanAmount)
-            } else {
-                this.stagingList.unshift({
-                    id: this.scannedStudent.id,
-                    name: this.scannedStudent.name,
-                    nis: this.scannedStudent.identity_number,
-                    class_name: this.scannedStudent.class_name,
-                    amount: Number(this.scanAmount)
-                })
-            }
-            
-            this.resetScan() // Kembali ke mode scan NIS
-        },
-        removeFromStaging(index) {
-            this.stagingList.splice(index, 1)
-        },
-        async submitStaging() {
-            if (this.stagingList.length === 0) return
-            
-            if (!confirm(`Simpan ${this.stagingList.length} transaksi tabungan dengan total Rp ${this.formatNumber(this.stagingTotal)}?`)) return
-            
-            this.isSubmitting = true
-            try {
-                const items = this.stagingList.map(s => ({
-                    student_id: s.id,
-                    amount: s.amount,
-                    description: 'Setoran Scan Batch'
-                }))
-                
-                const payload = {
-                    items: items,
-                    type: 'DEPOSIT',
-                    request_id: `SCAN-${Date.now()}`
-                }
-                
-                const res = await fetch(window.BASE_URL + 'api/finance.php?action=save_savings_batch', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload)
-                })
-                const data = await res.json()
-                
-                if (data.success) {
-                    alert('Data scan berhasil disimpan!')
-                    this.stagingList = []
-                    this.resetScan()
-                } else {
-                    alert(data.message || 'Gagal menyimpan data')
-                }
-            } catch (e) {
-                alert('Error: ' + e.message)
-            } finally {
-                this.isSubmitting = false
-            }
-        },
-
         // --- BATCH METHODS ---
         async fetchUnits() {
             try {
@@ -753,3 +660,5 @@ createApp({
     }
 }).mount('#app')
 </script>
+</body>
+</html>
