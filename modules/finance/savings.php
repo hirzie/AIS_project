@@ -66,29 +66,42 @@ require_once '../../includes/header_finance.php';
             <div v-else class="p-4 border-b border-slate-100 space-y-3">
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Pilih Unit</label>
-                    <select v-model="batchUnitId" @change="fetchClasses" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <select v-model="batchUnitId" @change="fetchClasses" :disabled="isBatchLocked" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed">
                         <option value="">-- Pilih Unit --</option>
                         <option v-for="u in units" :key="u.id" :value="u.id">{{ u.name }}</option>
                     </select>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Pilih Kelas</label>
-                    <select v-model="batchClassId" @change="fetchClassStudents" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" :disabled="!batchUnitId">
+                    <select v-model="batchClassId" :disabled="!batchUnitId || isBatchLocked" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 disabled:cursor-not-allowed">
                         <option value="">-- Pilih Kelas --</option>
                         <option v-for="c in classes" :key="c.id" :value="c.id">{{ c.name }}</option>
                     </select>
                 </div>
-                <div v-if="batchClassId" class="pt-2">
-                     <div class="text-xs text-slate-500 flex justify-between mb-1">
-                        <span>Total Setoran Batch</span>
-                        <span class="font-bold text-blue-600">Rp {{ formatNumber(batchTotal) }}</span>
-                     </div>
-                     <button @click="submitBatch" :disabled="isSubmitting || batchTotal <= 0" class="w-full bg-blue-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-50">
-                        <i class="fas fa-save mr-1"></i> SIMPAN BATCH
-                     </button>
-                     <button @click="clearDraft" class="w-full mt-2 text-slate-400 hover:text-red-500 text-xs font-bold">
-                        <i class="fas fa-trash mr-1"></i> Reset Draft
-                     </button>
+                
+                <!-- Action Buttons -->
+                <div class="pt-2">
+                    <button v-if="!isBatchLocked" @click="lockBatch" :disabled="!batchClassId" class="w-full bg-blue-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-50 transition-all shadow-sm">
+                        <i class="fas fa-lock mr-1"></i> MULAI INPUT / LOCK
+                    </button>
+                    
+                    <div v-else class="space-y-2 animate-fade">
+                         <div class="bg-blue-50 p-2 rounded border border-blue-100 text-xs text-blue-700 mb-2 flex justify-between items-center">
+                            <span><i class="fas fa-lock text-blue-500 mr-1"></i> Kelas Terkunci</span>
+                            <button @click="unlockBatch" class="text-blue-500 hover:text-blue-700 font-bold underline">Ubah</button>
+                         </div>
+                    
+                         <div class="text-xs text-slate-500 flex justify-between mb-1">
+                            <span>Total Setoran</span>
+                            <span class="font-bold text-blue-600">Rp {{ formatNumber(batchTotal) }}</span>
+                         </div>
+                         <button @click="submitBatch" :disabled="isSubmitting || batchTotal <= 0" class="w-full bg-green-600 text-white py-2 rounded-lg text-xs font-bold hover:bg-green-700 disabled:opacity-50 shadow-sm">
+                            <i class="fas fa-save mr-1"></i> SIMPAN BATCH
+                         </button>
+                         <button @click="clearDraft" class="w-full text-slate-400 hover:text-red-500 text-xs font-bold py-1">
+                            <i class="fas fa-trash mr-1"></i> Reset Draft
+                         </button>
+                    </div>
                 </div>
             </div>
             
@@ -199,9 +212,10 @@ require_once '../../includes/header_finance.php';
 
             <!-- BATCH MODE UI -->
             <div v-else-if="mode === 'batch'" class="flex-1 flex flex-col overflow-hidden">
-                <div v-if="!batchClassId" class="flex-1 flex flex-col items-center justify-center text-slate-400">
+                <div v-if="!isBatchLocked" class="flex-1 flex flex-col items-center justify-center text-slate-400">
                     <i class="fas fa-users text-4xl mb-4 text-slate-300"></i>
-                    <p>Pilih Unit dan Kelas untuk memulai input massal</p>
+                    <p v-if="!batchClassId">Pilih Unit dan Kelas untuk memulai input massal</p>
+                    <p v-else class="animate-pulse">Klik tombol <b>MULAI INPUT / LOCK</b> di panel kiri</p>
                 </div>
                 <div v-else class="flex-1 flex flex-col overflow-hidden bg-white m-4 rounded-xl shadow-sm border border-slate-200">
                     <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -401,6 +415,7 @@ createApp({
             batchUnitId: '',
             batchClassId: '',
             batchStudents: [],
+            isBatchLocked: false,
             
             // Scan Mode Data
             scanQuery: '',
@@ -560,30 +575,9 @@ createApp({
         async fetchClasses() {
             this.classes = []
             this.batchClassId = ''
+            this.isBatchLocked = false // Unlock if unit changes
             if (!this.batchUnitId) return
             try {
-                // We need an endpoint for classes by unit. Assuming get_classes supports unit_id filter or we fetch all
-                // For now let's use a simple query if not exists, or reuse existing API structure
-                // Let's try fetching classes (assuming finance.php has get_classes or similar, if not we might need to add it or use acad API)
-                // Since I cannot check acad API easily, I will use a direct fetch to a helper action if needed.
-                // Let's assume action=get_classes exists or use what report_savings used.
-                // Actually report_savings used get_savings_report logic.
-                // Let's use a new action in finance.php or existing one. 
-                // Let's try action=get_classes if available, or I'll add it. 
-                // Wait, I didn't add get_classes in finance.php. I should check if it exists.
-                // If not, I will use a simple workaround: fetch all classes and filter client side? No, too heavy.
-                // I will add get_classes_by_unit to finance.php in next step if it fails.
-                // But for now, let's assume I can fetch from `api/academic.php?action=get_classes&unit_id=...` if it existed.
-                // Let's use `api/finance.php?action=get_settings` which usually returns units.
-                // I'll check `get_class_savings_list` again. It needs class_id.
-                
-                // Let's look at `academic.js` usage or `manage_schedule.php`.
-                // I'll implement `fetchClasses` by fetching all classes for now or adding a small endpoint.
-                // To be safe, I'll add `get_classes` to finance.php quickly in next tool call if needed.
-                // But wait, I can just query `api/master.php` if it exists?
-                // Let's assume I need to fetch classes. 
-                // I will add a fetch to `api/finance.php?action=get_classes&unit_id=` which I will ensure exists.
-                
                 const res = await fetch(window.BASE_URL + `api/finance.php?action=get_classes&unit_id=${this.batchUnitId}`)
                 const data = await res.json()
                 if (data.success) {
@@ -595,6 +589,15 @@ createApp({
                      this.classes = data2
                 }
             } catch (e) {}
+        },
+        lockBatch() {
+            if (!this.batchClassId) return
+            this.isBatchLocked = true
+            this.fetchClassStudents()
+        },
+        unlockBatch() {
+            this.isBatchLocked = false
+            this.batchStudents = []
         },
         async fetchClassStudents() {
             if (!this.batchClassId) return
@@ -618,6 +621,7 @@ createApp({
                 }
             } catch (e) {
                 alert('Gagal mengambil data siswa')
+                this.isBatchLocked = false
             }
         },
         async submitBatch() {
