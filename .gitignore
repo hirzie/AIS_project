@@ -24,3 +24,6 @@ temp_build_*/
 
 # Local server configs
 nginx_*.conf
+
+# Environment config
+.env

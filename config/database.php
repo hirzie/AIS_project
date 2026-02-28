@@ -2,7 +2,7 @@
 // config/database.php
 // Konfigurasi Database Cerdas (Auto-Detect Local vs Server)
 
-$host = 'localhost';
+$host = getenv('DB_HOST') ?: 'localhost';
 $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
 $docRoot = $_SERVER['DOCUMENT_ROOT'] ?? '';
 $serverName = $_SERVER['SERVER_NAME'] ?? '';
@@ -14,7 +14,8 @@ $isTestInstance = (
     (stripos($serverName, 'test') !== false) ||
     (stripos($dirPath, 'AIStest') !== false)
 );
-$dbname = $isTestInstance ? 'aiscore_test' : 'aiscore';
+$envDb = getenv('DB_NAME') ?: null;
+$dbname = $envDb ?: ($isTestInstance ? 'aiscore_test' : 'aiscore');
 
 // Set Timezone Indonesia (WIB)
 date_default_timezone_set('Asia/Jakarta');
@@ -26,19 +27,25 @@ $remoteAddr = $_SERVER['REMOTE_ADDR'] ?? '';
 $isWindows = (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN');
 $isLocal = $isCli ? true : ($serverName === 'localhost' || $remoteAddr === '127.0.0.1' || $remoteAddr === '::1');
 
-if ($isLocal) {
-    // --- SETTINGAN LOCALHOST (XAMPP) ---
-    $host = '127.0.0.1';
-    $username = 'root';
-    $password = ''; // Password XAMPP biasanya kosong
+$envUser = getenv('DB_USER') ?: null;
+$envPass = getenv('DB_PASS') ?: null;
+if ($envUser !== null || $envPass !== null) {
+    $username = $envUser ?? '';
+    $password = $envPass ?? '';
+    if ($isLocal) { $host = $host ?: '127.0.0.1'; }
 } else {
-    // --- SETTINGAN SERVER LIVE (AA PANEL) ---
-    if ($isTestInstance) {
-        $username = 'aiscore_test';
-        $password = '12345654';
+    if ($isLocal) {
+        $host = '127.0.0.1';
+        $username = 'root';
+        $password = '';
     } else {
-        $username = 'aiscore';
-        $password = '12345654';
+        if ($isTestInstance) {
+            $username = 'aiscore_test';
+            $password = '12345654';
+        } else {
+            $username = 'aiscore';
+            $password = '12345654';
+        }
     }
 }
 
