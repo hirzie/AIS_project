@@ -23,13 +23,20 @@ if (is_file($cfgPath)) {
 $remoteIp = $_SERVER['REMOTE_ADDR'] ?? '';
 if ($allowedIps && !in_array($remoteIp, $allowedIps, true)) { http_response_code(403); echo json_encode(['success'=>false,'error'=>'ip_not_allowed']); exit; }
 $raw = file_get_contents('php://input');
+$rawLen = strlen($raw);
 $sig256 = $_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? '';
 $sig1 = $_SERVER['HTTP_X_HUB_SIGNATURE'] ?? '';
 $sig = $sig256 ?: $sig1;
 $algo = $sig256 ? 'sha256' : ($sig1 ? 'sha1' : '');
 if ($debug) {
     $ts = date('Y-m-d H:i:s');
-    file_put_contents($logFile, "[$ts] event=" . ($_SERVER['HTTP_X_GITHUB_EVENT'] ?? '') . " algo=" . $algo . " sig_present=" . ($sig ? '1':'0') . PHP_EOL, FILE_APPEND);
+    $ct = $_SERVER['CONTENT_TYPE'] ?? '';
+    $cl = $_SERVER['CONTENT_LENGTH'] ?? '';
+    $rm = $_SERVER['REQUEST_METHOD'] ?? '';
+    file_put_contents($logFile, "[$ts] event=" . ($_SERVER['HTTP_X_GITHUB_EVENT'] ?? '') . " algo=" . $algo . " sig_present=" . ($sig ? '1':'0') . " method=$rm ct=$ct cl=$cl raw_len=$rawLen" . PHP_EOL, FILE_APPEND);
+    if ($rawLen > 0) {
+        file_put_contents($logFile, substr($raw, 0, 256) . PHP_EOL, FILE_APPEND);
+    }
 }
 if (!$secret || !$sig || !$algo) { http_response_code(401); echo json_encode(['success'=>false,'error'=>'missing_secret_or_signature']); exit; }
 $calc = $algo . '=' . hash_hmac($algo, $raw, $secret);
