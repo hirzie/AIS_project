@@ -1,21 +1,14 @@
 #!/bin/bash
-# deploy.sh
-# Script deploy untuk AA Panel: sinkronisasi kode dari GitHub ke webroot
-# Konfigurasi variabel berikut sesuai server Anda
+set -euo pipefail
 REPO_URL_SSH="git@github.com:hirzie/AIS_project.git"
-REPO_URL_HTTP="https://github.com/hirzie/AIS_project.git"
-BRANCH="main"
-TMP_DIR="/tmp/ais_tmp"
-WEBROOT="/www/wwwroot/AIS_project"
-SSH_KEY="~/.ssh/id_ed25519_aapanel"
-
-echo "--- START DEPLOYMENT ---"
-
-echo "Preparing source at $TMP_DIR ..."
+BRANCH="${BRANCH:-main}"
+TMP_DIR="${TMP_DIR:-/tmp/AIS_tmp}"
+WEBROOT="/www/wwwroot/AIStest"
+SSH_KEY="${SSH_KEY:-~/.ssh/id_ed25519_aapanel}"
+echo "START"
 git config --global --add safe.directory "$TMP_DIR" 2>/dev/null || true
 if [ -d "$TMP_DIR/.git" ]; then
-  echo "Pulling latest code ($BRANCH)..."
-  if [ -n "$GHTOKEN" ]; then
+  if [ -n "${GHTOKEN:-}" ]; then
     git -C "$TMP_DIR" fetch origin "$BRANCH"
     git -C "$TMP_DIR" checkout "$BRANCH"
     git -C "$TMP_DIR" pull origin "$BRANCH"
@@ -25,32 +18,24 @@ if [ -d "$TMP_DIR/.git" ]; then
     GIT_SSH_COMMAND="ssh -i $SSH_KEY -o IdentitiesOnly=yes" git -C "$TMP_DIR" pull origin "$BRANCH"
   fi
 else
-  echo "Cloning repository..."
   rm -rf "$TMP_DIR"
-  if [ -n "$GHTOKEN" ]; then
-    git clone "$REPO_URL_HTTP" "$TMP_DIR"
+  if [ -n "${GHTOKEN:-}" ]; then
+    git clone "https://github.com/hirzie/AIS_project.git" "$TMP_DIR"
   else
     GIT_SSH_COMMAND="ssh -i $SSH_KEY -o IdentitiesOnly=yes" git clone "$REPO_URL_SSH" "$TMP_DIR"
   fi
   git -C "$TMP_DIR" checkout "$BRANCH"
 fi
-
-echo "Syncing files to $WEBROOT ..."
 mkdir -p "$WEBROOT"
-rsync -a --delete \
+rsync -a --delete --chown=www:www \
   --exclude='.user.ini' \
   --exclude='config/database.php' \
   --exclude='sessions/' \
   --exclude='uploads/' \
   --exclude='backups/' \
   "$TMP_DIR/" "$WEBROOT/"
-
-echo "Setting permissions..."
-chown -R www:www "$WEBROOT"
 find "$WEBROOT" -type d -exec chmod 755 {} \;
 find "$WEBROOT" -type f -exec chmod 644 {} \;
 mkdir -p "$WEBROOT/uploads" "$WEBROOT/sessions"
-chmod -R 775 "$WEBROOT/uploads" 2>/dev/null || true
-chmod -R 775 "$WEBROOT/sessions" 2>/dev/null || true
-
-echo "--- DEPLOYMENT SUCCESSFUL ---"
+chmod -R 775 "$WEBROOT/uploads" "$WEBROOT/sessions"
+echo "DONE"
