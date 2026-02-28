@@ -195,13 +195,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = "Mohon isi username dan password.";
     }
 }
+$ver = [];
+try { $ver = require __DIR__ . '/config/version.php'; } catch (\Throwable $e) {}
+$vstr = isset($ver['version']) ? (string)$ver['version'] : '';
+$scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+$serverName = $_SERVER['SERVER_NAME'] ?? '';
+$reqUri = $_SERVER['REQUEST_URI'] ?? '';
+$isLocal = ($serverName === 'localhost' || $serverName === '127.0.0.1');
+$isTest = (preg_match('#/AIStest/#i', $scriptName) || preg_match('#/AIStest/#i', $reqUri) || stripos($serverName, 'test') !== false);
+$envLabel = $isLocal ? 'Local' : ($isTest ? 'Staging' : 'Production');
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - SekolahOS (Preview)</title>
+    <title>Login - SekolahOS</title>
     <script>
         (function() {
             var m = (window.location.pathname || '').match(/^\/(AIS|AIStest)\//i);
@@ -232,9 +241,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center mx-auto mb-4 text-white text-3xl shadow-inner">
                     <i class="fas fa-school"></i>
                 </div>
-                <h1 class="text-2xl font-bold text-white mb-1">SekolahOS (Preview)</h1>
+                <h1 class="text-2xl font-bold text-white mb-1">SekolahOS</h1>
                 <p class="text-blue-100 text-sm">Sistem Informasi Manajemen Sekolah</p>
-                <p class="text-blue-200 text-xs mt-1">Mac M1 Integration Test</p>
+                <div class="mt-2 flex items-center justify-center gap-2">
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-white/20 text-white"><?php echo htmlspecialchars($envLabel); ?></span>
+                    <?php if ($vstr): ?>
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-white/20 text-white">v<?php echo htmlspecialchars($vstr); ?></span>
+                    <?php endif; ?>
+                </div>
             </div>
 
             <!-- Form -->
