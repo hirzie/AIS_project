@@ -41,3 +41,22 @@ deploy_prod
   ```
   sudo git config --global --add safe.directory /tmp/AIS_tmp
   ```
+
+## Opsi Auto-Deploy via Webhook (push langsung jalan)
+1. Install command deploy seperti di atas.
+2. Salin file `tools/webhook_deploy.php` ke lokasi yang diakses web (mis. `/www/wwwroot/AIStest/webhook_deploy.php`).
+3. Set environment di server:
+   - `GH_WEBHOOK_SECRET` (nilai rahasia sama dengan yang dibuat di GitHub)
+   - Opsional `GH_ALLOWED_IPS` (daftar IP yang diizinkan, dipisah koma)
+4. Buat GitHub Webhook:
+   - Repo Settings > Webhooks > Add webhook
+   - Payload URL: `https://<domain>/webhook_deploy.php`
+   - Content type: `application/json`
+   - Secret: isi `GH_WEBHOOK_SECRET`
+   - Pilih event: `Just the push event`
+5. Uji dengan push ke branch `main`. Endpoint akan mengeksekusi `deploy_staging`.
+
+Alternatif yang lebih sederhana: cron
+```
+*/5 * * * * deploy_staging >/var/log/deploy_staging.log 2>&1
+```
