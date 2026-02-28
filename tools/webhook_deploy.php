@@ -16,6 +16,8 @@ if (is_file($cfgPath)) {
         if (!$allowedIps && isset($cfg['allowed_ips'])) {
             $allowedIps = array_filter(array_map('trim', is_array($cfg['allowed_ips']) ? $cfg['allowed_ips'] : explode(',', (string)$cfg['allowed_ips'])));
         }
+        if (isset($cfg['debug'])) { $debug = (bool)$cfg['debug']; }
+        if (isset($cfg['log']) && $cfg['log']) { $logFile = (string)$cfg['log']; }
     }
 }
 $remoteIp = $_SERVER['REMOTE_ADDR'] ?? '';
