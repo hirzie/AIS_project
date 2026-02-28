@@ -1,6 +1,7 @@
 <?php
 header('Content-Type: application/json');
 $secret = getenv('GH_WEBHOOK_SECRET') ?: '';
+$secretSrc = $secret ? 'env' : 'none';
 $allowedIps = array_filter(array_map('trim', explode(',', getenv('GH_ALLOWED_IPS') ?: '')));
 $debug = (getenv('GH_WEBHOOK_DEBUG') === '1');
 $logFile = getenv('GH_WEBHOOK_LOG') ?: '/tmp/ais_webhook.log';
@@ -12,7 +13,7 @@ $cfgPath = __DIR__ . '/config/webhook_secret.php';
 if (is_file($cfgPath)) {
     $cfg = include $cfgPath;
     if (is_array($cfg)) {
-        if (!$secret && isset($cfg['secret'])) { $secret = (string)$cfg['secret']; }
+        if (isset($cfg['secret'])) { $secret = (string)$cfg['secret']; $secretSrc = 'file'; }
         if (!$allowedIps && isset($cfg['allowed_ips'])) {
             $allowedIps = array_filter(array_map('trim', is_array($cfg['allowed_ips']) ? $cfg['allowed_ips'] : explode(',', (string)$cfg['allowed_ips'])));
         }
@@ -33,7 +34,7 @@ if ($debug) {
     $ct = $_SERVER['CONTENT_TYPE'] ?? '';
     $cl = $_SERVER['CONTENT_LENGTH'] ?? '';
     $rm = $_SERVER['REQUEST_METHOD'] ?? '';
-    file_put_contents($logFile, "[$ts] event=" . ($_SERVER['HTTP_X_GITHUB_EVENT'] ?? '') . " algo=" . $algo . " sig_present=" . ($sig ? '1':'0') . " method=$rm ct=$ct cl=$cl raw_len=$rawLen" . PHP_EOL, FILE_APPEND);
+    file_put_contents($logFile, "[$ts] event=" . ($_SERVER['HTTP_X_GITHUB_EVENT'] ?? '') . " algo=" . $algo . " sig_present=" . ($sig ? '1':'0') . " method=$rm ct=$ct cl=$cl raw_len=$rawLen secret_src=$secretSrc secret_len=" . strlen($secret) . PHP_EOL, FILE_APPEND);
     if ($rawLen > 0) {
         file_put_contents($logFile, substr($raw, 0, 256) . PHP_EOL, FILE_APPEND);
     }
