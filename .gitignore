@@ -1,0 +1,26 @@
+# Windows junk
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log
+
+# Temp
+tmp/
+temp/
+
+# Sessions
+sessions/
+
+# Uploads
+uploads/
+
+# Backups & dumps
+backups/
+*.sql
+
+# Build artifacts
+temp_build_*/
+
+# Local server configs
+nginx_*.conf

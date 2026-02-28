@@ -1,0 +1,36 @@
+PANDUAN PERBAIKAN NGINX (404 NOT FOUND)
+=========================================
+
+Masalah utama: Nginx tidak mengirimkan request "/DfP6M" ke PHP, melainkan mencari file fisik bernama "DfP6M" yang tidak ada, sehingga muncul 404.
+
+SOLUSI 1: GUNAKAN FALLBACK URL (Tanpa Ubah Nginx)
+------------------------------------------------
+Saya sudah mengupdate `index.php` agar mendukung format URL berikut:
+https://test.alamanahlembang.sch.id/index.php/DfP6M
+
+Silakan coba akses link di atas. Jika berhasil masuk ke tampilan Display, maka logika aplikasi sudah benar.
+
+SOLUSI 2: PERBAIKI KONFIGURASI NGINX (Agar Link Pendek Bisa Dipakai)
+--------------------------------------------------------------------
+Jika Anda ingin menggunakan link pendek (tanpa /index.php/), Anda WAJIB memperbaiki konfigurasi Nginx di panel.
+
+1. Buka Config Nginx untuk domain `test.alamanahlembang.sch.id`.
+2. Hapus semua baris `rewrite` manual yang sebelumnya Anda buat (yang menyebabkan error).
+3. Tambahkan blok `location /` berikut di dalam `server { ... }`:
+
+   location / {
+       try_files $uri $uri/ /index.php?$query_string;
+   }
+
+   ATAU jika menggunakan AA Panel (Tab "URL Rewrite"), pilih template "ThinkPHP" atau "Laravel". Isinya biasanya seperti ini:
+
+   location / {
+       if (!-e $request_filename){
+           rewrite  ^(.*)$  /index.php?s=$1  last;   break;
+       }
+   }
+
+PENTING: Pastikan tidak ada blok `location /` ganda.
+
+Setelah disimpan, reload Nginx dan coba akses kembali:
+https://test.alamanahlembang.sch.id/DfP6M

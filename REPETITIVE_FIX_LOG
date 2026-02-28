@@ -1,0 +1,50 @@
+# Repetitive Fix Log & Lessons Learned
+
+## 1. Issue: "Blank Page" (FOUC) on Dashboard (`index.php`)
+- **Symptoms:**
+  - Page loads but shows only a white screen or background frame.
+  - Console errors: `Vue is not defined` or `Tailwind is not defined`.
+  - Sidebar content is hidden.
+- **Root Cause:**
+  1.  **`v-cloak` Aggressiveness:** The CSS rule `[v-cloak] { display: none !important; }` was hiding the entire `#app` container. When Vue failed to mount (due to a minor JS error), the content remained hidden forever.
+  2.  **Tailwind Timing:** Tailwind CDN takes time to scan the DOM and generate styles. If Vue mounts before Tailwind is ready, the initial render has no utility classes.
+- **Fix Implemented:**
+  - **Relaxed `v-cloak`:** Only hide specific dynamic elements, not the entire `#app` or sidebar.
+  - **Inline Styles:** Added `style="display: flex; ..."` to the sidebar as a fallback.
+  - **Explicit Config:** Added `<script>tailwind.config = {...}</script>` *before* the main app script to force color generation.
+  - **Error Handler:** Added `window.onerror` to display a red error bar if JS crashes.
+
+## 2. Issue: Sidebar Navigation Broken (SPA vs PHP)
+- **Symptoms:**
+  - Clicking sidebar links did nothing or caused a full page reload when it shouldn't.
+  - External modules (e.g., `modules/academic/index.php`) failed to load inside the SPA container.
+- **Root Cause:**
+  - The `navigate(target)` function in `index.php` assumed all links were internal SPA views (like `dash`, `settings`).
+  - It tried to load external PHP files via AJAX/Component swapping, which failed because they are full HTML pages.
+- **Fix Implemented:**
+  - **Logic Update:** `navigate()` now checks for `.php` extension.
+  - **Condition:** If `.php`, use `window.location.href = target` (Full Redirect).
+  - **Else:** Use internal state update `this.currentPage = target` (SPA Navigation).
+
+## 3. Issue: Missing Schedule Data in `class_detail.php`
+- **Symptoms:**
+  - The "Jadwal Pelajaran" tab was empty despite data existing in the database.
+  - Console showed no errors, but network response had empty `timeSlots`.
+- **Root Cause:**
+  - **SQL Join Missing:** The PHP query for `acad_classes` did not join `core_units` to get `unit_code`.
+  - **JS Dependency:** The frontend logic relies on `unit_code` (e.g., 'SD', 'SMP') to filter and fetch the correct time slots. Without it, the fetch was skipped or returned nothing.
+- **Fix Implemented:**
+  - **SQL Update:** Added `LEFT JOIN core_units u ON l.unit_id = u.id` to the `class_detail.php` query.
+  - **Explicit Fetch:** Added `this.fetchSchedule(this.selectedClass.id)` in the `created()` hook to ensure data is loaded even if pre-fetching fails.
+
+## 4. Issue: "Stuck Loading" on Production Hosting
+- **Symptoms:**
+  - Works locally (XAMPP) but hangs indefinitely on cPanel hosting.
+  - Console errors: `404 Not Found` for `.js` files or `MIME type mismatch`.
+- **Root Cause:**
+  - **ES Modules:** Browsers request modules using absolute paths (`/assets/...`). On shared hosting, the app might be in a subdirectory (`/public_html/AIS/`), breaking these paths.
+  - **File Permissions:** Some hosts block `.mjs` or strict module loading.
+- **Fix Implemented:**
+  - **Inline Strategy:** We stopped using `<script type="module" src="...">`.
+  - **Merger:** We manually merged `utils.js`, `academic.js`, etc., into a single internal `<script>` block within the PHP file.
+  - **Path Resolution:** Used PHP to generate the correct `BASE_URL` dynamically based on `$_SERVER['SCRIPT_NAME']`.
