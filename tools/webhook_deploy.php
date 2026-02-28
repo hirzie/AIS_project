@@ -2,6 +2,12 @@
 header('Content-Type: application/json');
 $secret = getenv('GH_WEBHOOK_SECRET') ?: '';
 $allowedIps = array_filter(array_map('trim', explode(',', getenv('GH_ALLOWED_IPS') ?: '')));
+$debug = (getenv('GH_WEBHOOK_DEBUG') === '1');
+$logFile = getenv('GH_WEBHOOK_LOG') ?: '/tmp/ais_webhook.log';
+if ($debug) {
+    $ts = date('Y-m-d H:i:s');
+    file_put_contents($logFile, "[$ts] init remote=" . ($_SERVER['REMOTE_ADDR'] ?? '') . PHP_EOL, FILE_APPEND);
+}
 $cfgPath = __DIR__ . '/config/webhook_secret.php';
 if (is_file($cfgPath)) {
     $cfg = include $cfgPath;
@@ -16,6 +22,10 @@ $remoteIp = $_SERVER['REMOTE_ADDR'] ?? '';
 if ($allowedIps && !in_array($remoteIp, $allowedIps, true)) { http_response_code(403); echo json_encode(['success'=>false,'error'=>'ip_not_allowed']); exit; }
 $raw = file_get_contents('php://input');
 $sig = $_SERVER['HTTP_X_HUB_SIGNATURE_256'] ?? '';
+if ($debug) {
+    $ts = date('Y-m-d H:i:s');
+    file_put_contents($logFile, "[$ts] event=" . ($_SERVER['HTTP_X_GITHUB_EVENT'] ?? '') . " sig_present=" . ($sig ? '1':'0') . PHP_EOL, FILE_APPEND);
+}
 if (!$secret || !$sig) { http_response_code(401); echo json_encode(['success'=>false,'error'=>'missing_secret_or_signature']); exit; }
 $calc = 'sha256=' . hash_hmac('sha256', $raw, $secret);
 if (!hash_equals($calc, $sig)) { http_response_code(401); echo json_encode(['success'=>false,'error'=>'invalid_signature']); exit; }
@@ -25,4 +35,9 @@ $cmd = '/usr/local/bin/deploy_staging';
 $out = [];
 $code = 0;
 exec('bash -lc ' . escapeshellarg($cmd) . ' 2>&1', $out, $code);
+if ($debug) {
+    $ts = date('Y-m-d H:i:s');
+    $snippet = implode("\n", array_slice($out, -10));
+    file_put_contents($logFile, "[$ts] exec_code=$code\n$snippet\n", FILE_APPEND);
+}
 echo json_encode(['success'=>($code===0),'code'=>$code,'output'=>implode("\n",$out)]);
