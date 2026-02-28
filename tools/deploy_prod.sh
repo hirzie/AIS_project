@@ -34,8 +34,9 @@ rsync -a --delete --chown=www:www \
   --exclude='uploads/' \
   --exclude='backups/' \
   "$TMP_DIR/" "$WEBROOT/"
-find "$WEBROOT" -type d -exec chmod 755 {} \;
-find "$WEBROOT" -type f -exec chmod 644 {} \;
+# Skip immutable .user.ini when setting permissions
+find "$WEBROOT" -path "$WEBROOT/.user.ini" -prune -o -type d -exec chmod 755 {} \;
+find "$WEBROOT" -path "$WEBROOT/.user.ini" -prune -o -type f -exec chmod 644 {} \;
 mkdir -p "$WEBROOT/uploads" "$WEBROOT/sessions"
 chmod -R 775 "$WEBROOT/uploads" "$WEBROOT/sessions"
 echo "DONE"
