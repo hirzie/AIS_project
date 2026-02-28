@@ -27,7 +27,7 @@ require_once '../../includes/header_finance.php';
 </nav>
 
 <!-- MAIN CONTENT (LANDING MENU) -->
-<main class="flex-1 overflow-y-auto p-8 flex items-center justify-center bg-slate-50 relative" id="app">
+<main class="flex-1 overflow-y-auto p-8 flex items-center justify-center bg-slate-50 relative">
     <!-- Background Decoration -->
     <div class="absolute inset-0 overflow-hidden pointer-events-none opacity-50">
         <div class="absolute -top-[20%] -right-[10%] w-[600px] h-[600px] rounded-full bg-blue-100/50 blur-3xl"></div>
@@ -217,6 +217,7 @@ require_once '../../includes/header_finance.php';
 
     </div>
 </main>
+</div>
 
 <script>
     const { createApp } = Vue

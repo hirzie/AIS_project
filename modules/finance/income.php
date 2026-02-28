@@ -3,7 +3,7 @@ require_once '../../config/database.php';
 require_once '../../includes/header_finance.php';
 ?>
 
-<div id="app" class="flex flex-col h-screen bg-slate-50">
+<div class="flex flex-col h-screen bg-slate-50">
     <nav class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 z-20 shadow-sm flex-none">
         <div class="flex items-center gap-3">
             <a href="<?php echo $baseUrl; ?>modules/finance/dashboard.php" class="w-10 h-10 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center justify-center text-slate-600 transition-colors">
@@ -378,6 +378,7 @@ require_once '../../includes/header_finance.php';
         }
     }).mount('#app')
 </script>
+</div> <!-- Close .flex container -->
 <?php require_once '../../includes/footer_finance.php'; ?>
     </body>
     </html>

@@ -20,7 +20,7 @@ require_once '../../includes/header_finance.php';
     </div>
     </nav>
 
-<main id="app" class="flex-1 overflow-y-auto p-8 bg-slate-50 relative">
+<main class="flex-1 overflow-y-auto p-8 bg-slate-50 relative">
     <div class="max-w-7xl mx-auto space-y-6">
         <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
@@ -64,6 +64,7 @@ require_once '../../includes/header_finance.php';
         </div>
     </div>
 </main>
+</div>
 
 <script>
 const { createApp } = Vue;
