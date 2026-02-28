@@ -60,3 +60,18 @@ Alternatif yang lebih sederhana: cron
 ```
 */5 * * * * deploy_staging >/var/log/deploy_staging.log 2>&1
 ```
+
+### Opsi simpan secret via file (tanpa ENV)
+1. Buat folder config di webroot staging:
+   ```
+   mkdir -p /www/wwwroot/AIStest/config
+   ```
+2. Buat file `/www/wwwroot/AIStest/config/webhook_secret.php` berisi:
+   ```php
+   <?php
+   return [
+     'secret' => 'ISI_SECRET_WEBHOOK',
+     'allowed_ips' => [] // atau "ip1,ip2"
+   ];
+   ```
+3. Simpan `tools/webhook_deploy.php` ke webroot, lalu uji dengan push.
