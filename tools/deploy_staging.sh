@@ -9,9 +9,12 @@ echo "START"
 git config --global --add safe.directory "$TMP_DIR" 2>/dev/null || true
 if [ -d "$TMP_DIR/.git" ]; then
   if [ -n "${GHTOKEN:-}" ]; then
-    git -C "$TMP_DIR" fetch origin "$BRANCH"
+    # Ensure remote uses HTTPS when PAT is present
+    git -C "$TMP_DIR" remote set-url origin "https://github.com/hirzie/AIS_project.git" || true
+    # Attach Authorization header for this process
+    git -C "$TMP_DIR" -c http.extraHeader="Authorization: bearer $GHTOKEN" fetch origin "$BRANCH"
     git -C "$TMP_DIR" checkout "$BRANCH"
-    git -C "$TMP_DIR" pull origin "$BRANCH"
+    git -C "$TMP_DIR" -c http.extraHeader="Authorization: bearer $GHTOKEN" pull origin "$BRANCH"
   else
     GIT_SSH_COMMAND="ssh -i $SSH_KEY -o IdentitiesOnly=yes" git -C "$TMP_DIR" fetch origin "$BRANCH"
     git -C "$TMP_DIR" checkout "$BRANCH"
@@ -20,7 +23,7 @@ if [ -d "$TMP_DIR/.git" ]; then
 else
   rm -rf "$TMP_DIR"
   if [ -n "${GHTOKEN:-}" ]; then
-    git clone "https://github.com/hirzie/AIS_project.git" "$TMP_DIR"
+    git -c http.extraHeader="Authorization: bearer $GHTOKEN" clone "https://github.com/hirzie/AIS_project.git" "$TMP_DIR"
   else
     GIT_SSH_COMMAND="ssh -i $SSH_KEY -o IdentitiesOnly=yes" git clone "$REPO_URL_SSH" "$TMP_DIR"
   fi
