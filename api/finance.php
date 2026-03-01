@@ -139,10 +139,45 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
             
             $pdo->commit();
             jsonResponse(true, 'Transaksi berhasil dihapus');
+            
         } catch (Exception $e) {
             $pdo->rollBack();
             jsonResponse(false, 'Gagal menghapus: ' . $e->getMessage());
         }
+    }
+
+    // 50. REPORT TYPES: GET
+    if ($action == 'get_report_types' && $method == 'GET') {
+        $stmt = $pdo->query("SELECT * FROM fin_report_types ORDER BY sort_order ASC");
+        jsonResponse(true, 'Found', $stmt->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    // 51. REPORT TYPES: SAVE
+    if ($action == 'save_report_type' && $method == 'POST') {
+        $data = json_decode(file_get_contents('php://input'), true);
+        $name = $data['name'];
+        $desc = $data['description'] ?? '';
+        $sort = $data['sort_order'] ?? 0;
+        $id = $data['id'] ?? null;
+
+        if ($id) {
+            $stmt = $pdo->prepare("UPDATE fin_report_types SET name=?, description=?, sort_order=? WHERE id=?");
+            $stmt->execute([$name, $desc, $sort, $id]);
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO fin_report_types (name, description, sort_order) VALUES (?, ?, ?)");
+            $stmt->execute([$name, $desc, $sort]);
+            $id = $pdo->lastInsertId();
+        }
+        jsonResponse(true, 'Report Type saved', ['id' => $id]);
+    }
+
+    // 52. REPORT TYPES: DELETE
+    if ($action == 'delete_report_type' && $method == 'POST') {
+        $data = json_decode(file_get_contents('php://input'), true);
+        $id = $data['id'];
+        
+        $pdo->prepare("DELETE FROM fin_report_types WHERE id=?")->execute([$id]);
+        jsonResponse(true, 'Report Type deleted');
     }
 
     // 1. GET ALL SETTINGS (Payment Types & Categories)
@@ -259,6 +294,7 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
     if ($action == 'get_class_report' && $method == 'GET') {
         $class_id = $_GET['class_id'];
         $payment_type_id = $_GET['payment_type_id'];
+        $academic_year_id = $_GET['academic_year_id'] ?? '';
         
         $sql = "SELECT s.name as student_name, s.identity_number, 
                        b.bill_name, b.amount, b.amount_paid, b.status,
@@ -284,6 +320,11 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
                 WHERE sc.class_id = ? AND sc.status='ACTIVE'";
         
         $params = [$class_id];
+
+        if ($academic_year_id) {
+            $sql .= " AND b.academic_year_id = ?";
+            $params[] = $academic_year_id;
+        }
 
         if ($payment_type_id && $payment_type_id !== 'ALL') {
             $sql .= " AND b.payment_type_id = ?";
@@ -365,7 +406,10 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
         }
         $students = $stmt->fetchAll();
         
+        file_put_contents('../debug_finance.log', "GENERATE BILLS: Found " . count($students) . " students. ClassID: $class_id Type: " . $pType['type'] . "\n", FILE_APPEND);
+
         $count = 0;
+        $resultData = [];
         
         $pdo->beginTransaction();
 
@@ -413,54 +457,31 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
                 foreach ($months as $m) {
                     $year = ($m >= 7) ? 2025 : 2026; // TODO: Dynamic Year based on Academic Year
                     
-                    // CALCULATE MONTHLY INSTALLMENT
-                    // Revert to Standard Logic:
-                    // The tariff amount IS the monthly amount.
-                    // User probably confused because they set 500k but saw 6 Million TOTAL in report (500k x 12).
-                    // Or they set 500k and saw 500k per month, which is correct.
-                    // The issue "500rb generate 6 bulan hasilnya masih 6juta" means:
-                    // They set 500k. They generated 6 months.
-                    // Expected Total: 3 Million.
-                    // Actual Total: 6 Million?? 
-                    // This implies they generated 12 months (Full Year) instead of 6 months?
-                    // OR they generated twice?
-                    
-                    // If the user meant "I want to input 3 Million for 6 months, and get 500k/mo":
-                    // My previous fix did exactly that (divide by 6).
-                    // But now user shows "199.998". 
-                    // This means they likely inputted "1.200.000" (approx) and divided by 6 = 200k?
-                    // Or inputted 1.2M and divided by 6?
-                    
-                    // Let's look at the screenshot: "Total Tagihan Rp 199.998".
-                    // This is ~200.000.
-                    // If divisor was 6, then input was ~1.200.000.
-                    // If divisor was 12, then input was ~2.400.000.
-                    
-                    // The user's confusion might be:
-                    // They WANT to input 500.000 and get 500.000 per month.
-                    // My previous "fix" divided 500.000 by 6 = 83.333?? No.
-                    
-                    // Let's revert to: Tariff Amount = Monthly Amount.
-                    // And explain to user: "Input 500.000 for 500.000/month".
-                    // The previous "6 Juta" issue was likely because the REPORT shows TOTAL for ALL MONTHS generated?
-                    // If I generate 12 months @ 500k, report shows 6M. That is correct behavior.
-                    
-                    // Let's remove the divisor logic and keep it simple.
-                    // Tariff = Bill Amount.
-                    $billAmount = $billAmount; // No Division
-
-
                     // Check duplicate
                     $check = $pdo->prepare("SELECT id FROM fin_student_bills WHERE student_id=? AND payment_type_id=? AND month=? AND year=?");
                     $check->execute([$student['id'], $payment_type_id, $m, $year]);
+                    $exists = $check->fetch();
                     
-                    if (!$check->fetch()) {
+                    if (!$exists) {
                         $ins = $pdo->prepare("INSERT INTO fin_student_bills (student_id, payment_type_id, academic_year_id, bill_name, amount, month, year) VALUES (?, ?, ?, ?, ?, ?, ?)");
                         $billName = $pType['name'] . " - " . $m . "/" . $year;
-                        $ins->execute([$student['id'], $payment_type_id, $academic_year_id, $billName, $billAmount, $m, $year]);
-                        $count++;
-                        $studentTotal += $billAmount;
-                        $generatedBills[] = $billName;
+                        try {
+                            $ins->execute([$student['id'], $payment_type_id, $academic_year_id, $billName, $billAmount, $m, $year]);
+                            $count++;
+                            $studentTotal += $billAmount;
+                            $generatedBills[] = $billName;
+                            
+                            $resultData[] = [
+                                'student_name' => $student['name'],
+                                'bill_name' => $billName,
+                                'amount' => $billAmount,
+                                'status' => 'UNPAID'
+                            ];
+                        } catch (Exception $e) {
+                             file_put_contents('../debug_finance.log', "INSERT ERROR: " . $e->getMessage() . "\n", FILE_APPEND);
+                        }
+                    } else {
+                         file_put_contents('../debug_finance.log', "DUPLICATE FOUND: Student " . $student['id'] . " M:$m Y:$year\n", FILE_APPEND);
                     }
                 }
             } else if ($pType['type'] == 'YEARLY' || $period_mode == 'ONCE') {
@@ -474,6 +495,13 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
                      $ins->execute([$student['id'], $payment_type_id, $academic_year_id, $billName, $billAmount]);
                      $count++;
                      $studentTotal += $billAmount;
+                     
+                     $resultData[] = [
+                        'student_name' => $student['name'],
+                        'bill_name' => $billName,
+                        'amount' => $billAmount,
+                        'status' => 'UNPAID'
+                    ];
                  }
             }
 
@@ -521,7 +549,7 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
         }
         
         $pdo->commit();
-        jsonResponse(true, "Berhasil generate $count tagihan untuk siswa.");
+        jsonResponse(true, "Berhasil generate $count tagihan untuk siswa.", $resultData);
     }
     
     // 5. GET STUDENT BILLS (Untuk Halaman Pembayaran)
@@ -530,7 +558,7 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
         
         // Bills
         $stmt = $pdo->prepare("
-            SELECT b.*, pt.name as type_name, pt.type as payment_type, ay.name as academic_year_name
+            SELECT b.*, pt.name as type_name, pt.type as payment_type, pt.category as category, ay.name as academic_year_name
             FROM fin_student_bills b 
             JOIN fin_payment_types pt ON b.payment_type_id = pt.id 
             LEFT JOIN acad_years ay ON b.academic_year_id = ay.id
@@ -571,31 +599,41 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
         $count = 0;
 
         foreach ($items as $i => $item) {
-            $bill_id = $item['bill_id'];
+            $bill_id = $item['bill_id'] ?? null;
+            $payment_type_id = $item['payment_type_id'] ?? null;
+            
+            $bill = null;
+            $pt = null;
+
+            if ($bill_id) {
+                // Get Bill & Payment Type Info
+                $stmt = $pdo->prepare("
+                    SELECT b.*, pt.name as type_name, pt.account_receivable_id, pt.account_revenue_id, pt.account_cash_id, pt.account_discount_id 
+                    FROM fin_student_bills b 
+                    JOIN fin_payment_types pt ON b.payment_type_id = pt.id 
+                    WHERE b.id = ? FOR UPDATE
+                ");
+                $stmt->execute([$bill_id]);
+                $bill = $stmt->fetch();
+            } elseif ($payment_type_id) {
+                // Get Payment Type Info directly (Ad-hoc)
+                $stmt = $pdo->prepare("SELECT * FROM fin_payment_types WHERE id = ?");
+                $stmt->execute([$payment_type_id]);
+                $pt = $stmt->fetch();
+            }
+            
+            if (!$bill && !$pt) continue; // Skip invalid
+
             $amount_pay = $item['amount'];
-            $discount = $item['discount_amount'] ?? 0; // NEW
+            $discount = $item['discount_amount'] ?? 0;
             $cash_acc_id = $item['cash_account_id'] ?? null;
             $desc_custom = $item['description'] ?? null;
-            $item_unit_id = $item['unit_id'] ?? null; // Get from payload
-
-            // Get Bill & Payment Type Info
-            $stmt = $pdo->prepare("
-                SELECT b.*, pt.name as type_name, pt.account_receivable_id, pt.account_revenue_id, pt.account_cash_id, pt.account_discount_id 
-                FROM fin_student_bills b 
-                JOIN fin_payment_types pt ON b.payment_type_id = pt.id 
-                WHERE b.id = ? FOR UPDATE
-            ");
-            $stmt->execute([$bill_id]);
-            $bill = $stmt->fetch();
-            
-            if (!$bill) continue; // Skip invalid
+            $item_unit_id = $item['unit_id'] ?? null;
 
             // DETERMINE UNIT ID
-            // Priority 1: From Payload (User Selection)
-            // Priority 2: From Student Class
             $unit_id = $item_unit_id;
             
-            if (!$unit_id) {
+            if (!$unit_id && $bill) {
                 // Look up student's active class -> level -> unit
                 $stmtUnit = $pdo->prepare("
                     SELECT l.unit_id 
@@ -610,9 +648,6 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
             }
 
             if (!$unit_id) {
-                // FAIL IF NO UNIT (User Requirement)
-                // However, throwing error might break batch.
-                // Let's rollback and error.
                 $pdo->rollBack();
                 jsonResponse(false, 'Gagal: Unit tidak ditemukan untuk transaksi ini. Mohon pilih unit.');
             }
@@ -620,28 +655,51 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
             // Generate Numbers
             $transNo = generateReferenceNumber($pdo, $unit_id, 'I', 'fin_transactions', 'trans_number');
 
-            // Update Bill
-            // Total settled = Cash Paid + Discount
+            $studentName = '';
+            $className = '';
+            $billName = '';
+            $debitAcc = null;
+            $discAcc = null;
+            $creditAcc = null;
             $total_settled = $amount_pay + $discount;
-            $new_paid = $bill['amount_paid'] + $total_settled;
-            $status = ($new_paid >= $bill['amount']) ? 'PAID' : 'PARTIAL';
-            
-            $upd = $pdo->prepare("UPDATE fin_student_bills SET amount_paid = ?, status = ? WHERE id = ?");
-            $upd->execute([$new_paid, $status, $bill_id]);
-            
-            // Get Student Info for Description
-            $stmtStud = $pdo->prepare("
-                SELECT s.name, c.name as class_name 
-                FROM core_people s 
-                JOIN acad_student_classes sc ON s.id = sc.student_id 
-                JOIN acad_classes c ON sc.class_id = c.id
-                WHERE s.id = ? AND sc.status = 'ACTIVE' LIMIT 1
-            ");
-            $stmtStud->execute([$bill['student_id']]);
-            $studInfo = $stmtStud->fetch();
-            $studentName = $studInfo['name'] ?? 'Siswa';
-            $className = $studInfo['class_name'] ?? '-';
 
+            if ($bill) {
+                // BILL PAYMENT LOGIC
+                $new_paid = $bill['amount_paid'] + $total_settled;
+                $status = ($new_paid >= $bill['amount']) ? 'PAID' : 'PARTIAL';
+                
+                $upd = $pdo->prepare("UPDATE fin_student_bills SET amount_paid = ?, status = ? WHERE id = ?");
+                $upd->execute([$new_paid, $status, $bill_id]);
+                
+                // Get Student Info
+                $stmtStud = $pdo->prepare("
+                    SELECT s.name, c.name as class_name 
+                    FROM core_people s 
+                    JOIN acad_student_classes sc ON s.id = sc.student_id 
+                    JOIN acad_classes c ON sc.class_id = c.id
+                    WHERE s.id = ? AND sc.status = 'ACTIVE' LIMIT 1
+                ");
+                $stmtStud->execute([$bill['student_id']]);
+                $studInfo = $stmtStud->fetch();
+                $studentName = $studInfo['name'] ?? 'Siswa';
+                $className = $studInfo['class_name'] ?? '-';
+                $billName = $bill['bill_name'];
+
+                $debitAcc = $cash_acc_id ?: $bill['account_cash_id'];
+                $discAcc = $bill['account_discount_id'];
+                $creditAcc = $bill['account_receivable_id'] ?: $bill['account_revenue_id'];
+
+            } elseif ($pt) {
+                // AD-HOC PAYMENT LOGIC
+                $studentName = $desc_custom; // Usually contains "Penyetor"
+                $billName = $pt['name'];
+                
+                $debitAcc = $cash_acc_id ?: $pt['account_cash_id'];
+                $discAcc = $pt['account_discount_id'];
+                $creditAcc = $pt['account_revenue_id']; // Direct Revenue
+            }
+
+            // ... Common Transaction Insert ...
             $reqId = $reqBase !== '' ? ($reqBase . '-' . $i) : '';
             if ($reqId !== '') {
                 $chk = $pdo->prepare("SELECT trans_number FROM fin_transactions WHERE request_id = ?");
@@ -652,10 +710,16 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
                     continue;
                 }
             }
+            
             $ins = $pdo->prepare("INSERT INTO fin_transactions (unit_id, trans_date, trans_number, type, amount, description, student_bill_id, student_id, request_id) VALUES (?, ?, ?, 'INCOME', ?, ?, ?, ?, ?)");
-            $desc = $desc_custom ?: "Pembayaran " . $bill['bill_name'] . " - " . $studentName . " (" . $className . ")";
+            $desc = $desc_custom ?: "Pembayaran " . $billName . " - " . $studentName . ($className ? " (" . $className . ")" : "");
+            
+            // For Ad-hoc, student_id is null, bill_id is null
+            $studId = $bill ? $bill['student_id'] : null;
+            $billIdRef = $bill ? $bill_id : null;
+
             try {
-                $ins->execute([$unit_id, $date, $transNo, $amount_pay, $desc, $bill_id, $bill['student_id'], $reqId ?: null]);
+                $ins->execute([$unit_id, $date, $transNo, $amount_pay, $desc, $billIdRef, $studId, $reqId ?: null]);
             } catch (\PDOException $e) {
                 if ($reqId !== '') {
                     $count++;
@@ -665,19 +729,7 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
                 }
             }
 
-            // Journal Entries (Double Entry)
-            // Debit: Cash (Asset)
-            // Debit: Discount (Expense/Contra)
-            // Credit: Receivable (Asset/Piutang) OR Revenue (Pendapatan) if Cash Basis (No Receivable)
-            
-            // NEW LOGIC: Always get account from Payment Type (bill) first
-            $debitAcc = $cash_acc_id ?: $bill['account_cash_id']; // Cash
-            $discAcc = $bill['account_discount_id']; // Discount Account from Settings
-            
-            // Logic: If Receivable exists, credit it (Payment of Debt).
-            // If Receivable is NULL (Voluntary/Direct), credit Revenue directly.
-            $creditAcc = $bill['account_receivable_id'] ?: $bill['account_revenue_id'];
-
+            // Journal Entries
             if ($debitAcc && $creditAcc) {
                 // Journal Header
                 $jnlNo = generateReferenceNumber($pdo, $unit_id, 'J', 'fin_journals', 'journal_number');
@@ -689,18 +741,18 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
                 // Prepared statement for items
                 $insItem = $pdo->prepare("INSERT INTO fin_journal_items (journal_id, account_id, debit, credit) VALUES (?, ?, ?, ?)");
 
-                // Debit (Cash) - Only the paid amount
+                // Debit (Cash)
                 $insItem->execute([$journalId, $debitAcc, $amount_pay, 0]);
 
-                // Debit (Discount) - If any
+                // Debit (Discount)
                 if ($discount > 0 && $discAcc) {
                     $insItem->execute([$journalId, $discAcc, $discount, 0]);
                 }
 
-                // Credit (Receivable) - Total settled
+                // Credit (Receivable/Revenue)
                 $insItem->execute([$journalId, $creditAcc, 0, $total_settled]);
             } else {
-                 file_put_contents('../debug_finance.log', "MISSING ACCOUNTS FOR INCOME: Debit=$debitAcc Credit=$creditAcc BillID=$bill_id\n", FILE_APPEND);
+                 file_put_contents('../debug_finance.log', "MISSING ACCOUNTS FOR INCOME: Debit=$debitAcc Credit=$creditAcc BillID=$billIdRef PTID=$payment_type_id\n", FILE_APPEND);
             }
 
             $count++;
@@ -2409,6 +2461,277 @@ function log_activity($pdo, $module, $category, $action, $entity_type, $entity_i
             jsonResponse(true, 'Found', $stmt->fetchAll(PDO::FETCH_ASSOC));
         }
     }
+
+    // 44. OPERATIONAL REPORT: GET GROUPS (FILTER BY REPORT TYPE)
+    if ($action == 'get_operational_report_groups' && $method == 'GET') {
+        $report_type_id = $_GET['report_type_id'] ?? '';
+        
+        $sql = "SELECT * FROM fin_report_groups WHERE 1=1";
+        $params = [];
+        
+        if ($report_type_id) {
+            $sql .= " AND report_type_id = ?";
+            $params[] = $report_type_id;
+        }
+        
+        $sql .= " ORDER BY sort_order ASC";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $groups = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Fetch Items for each group
+        foreach ($groups as &$group) {
+            $stmtItems = $pdo->prepare("
+                SELECT i.*, 
+                    CASE 
+                        WHEN i.item_type = 'PAYMENT_TYPE' THEN (SELECT name FROM fin_payment_types WHERE id = i.item_id)
+                        WHEN i.item_type = 'INCOME_CATEGORY' THEN (SELECT name FROM fin_categories WHERE id = i.item_id)
+                        WHEN i.item_type = 'EXPENSE_CATEGORY' THEN (SELECT name FROM fin_categories WHERE id = i.item_id)
+                    END as item_name
+                FROM fin_report_group_items i
+                WHERE i.group_id = ?
+                ORDER BY i.sort_order ASC
+            ");
+            $stmtItems->execute([$group['id']]);
+            $group['items'] = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        jsonResponse(true, 'Data fetched', $groups);
+    }
+
+    // 45. OPERATIONAL REPORT: SAVE GROUP
+    if ($action == 'save_operational_report_group' && $method == 'POST') {
+        $data = json_decode(file_get_contents('php://input'), true);
+        $name = $data['name'];
+        $desc = $data['description'] ?? '';
+        $sort = $data['sort_order'] ?? 0;
+        $report_type_id = $data['report_type_id'] ?? null; // Added
+        $id = $data['id'] ?? null;
+
+        if ($id) {
+            $stmt = $pdo->prepare("UPDATE fin_report_groups SET name=?, description=?, sort_order=?, report_type_id=? WHERE id=?");
+            $stmt->execute([$name, $desc, $sort, $report_type_id, $id]);
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO fin_report_groups (name, description, sort_order, report_type_id) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$name, $desc, $sort, $report_type_id]);
+            $id = $pdo->lastInsertId();
+        }
+        jsonResponse(true, 'Group saved', ['id' => $id]);
+    }
+
+    // 46. OPERATIONAL REPORT: SAVE GROUP ITEM
+    if ($action == 'save_operational_group_item' && $method == 'POST') {
+        $data = json_decode(file_get_contents('php://input'), true);
+        $group_id = $data['group_id'];
+        $item_type = $data['item_type'];
+        $item_id = $data['item_id'];
+        $sort = $data['sort_order'] ?? 0;
+        $id = $data['id'] ?? null;
+
+        if ($id) {
+            $stmt = $pdo->prepare("UPDATE fin_report_group_items SET group_id=?, item_type=?, item_id=?, sort_order=? WHERE id=?");
+            $stmt->execute([$group_id, $item_type, $item_id, $sort, $id]);
+        } else {
+            // Check if exists to prevent duplicates
+            $chk = $pdo->prepare("SELECT id FROM fin_report_group_items WHERE group_id=? AND item_type=? AND item_id=?");
+            $chk->execute([$group_id, $item_type, $item_id]);
+            if ($chk->fetch()) {
+                jsonResponse(false, 'Item sudah ada di group ini');
+            }
+
+            $stmt = $pdo->prepare("INSERT INTO fin_report_group_items (group_id, item_type, item_id, sort_order) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$group_id, $item_type, $item_id, $sort]);
+            $id = $pdo->lastInsertId();
+        }
+        jsonResponse(true, 'Item saved', ['id' => $id]);
+    }
+
+    // 47. OPERATIONAL REPORT: DELETE GROUP
+    if ($action == 'delete_operational_report_group' && $method == 'POST') {
+        $data = json_decode(file_get_contents('php://input'), true);
+        $id = $data['id'];
+        
+        $pdo->beginTransaction();
+        try {
+            // Delete Items first
+            $pdo->prepare("DELETE FROM fin_report_group_items WHERE group_id=?")->execute([$id]);
+            
+            // Delete Group
+            $pdo->prepare("DELETE FROM fin_report_groups WHERE id=?")->execute([$id]);
+            
+            $pdo->commit();
+            jsonResponse(true, 'Group deleted');
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            jsonResponse(false, $e->getMessage());
+        }
+    }
+
+    // 48. OPERATIONAL REPORT: DELETE GROUP ITEM
+    if ($action == 'delete_operational_group_item' && $method == 'POST') {
+        $data = json_decode(file_get_contents('php://input'), true);
+        $id = $data['id'];
+        
+        $pdo->prepare("DELETE FROM fin_report_group_items WHERE id=?")->execute([$id]);
+        jsonResponse(true, 'Item deleted');
+    }
+
+    // 49. OPERATIONAL REPORT: GET DATA (CALCULATION)
+    if ($action == 'get_operational_report_data' && $method == 'GET') {
+        $startDate = $_GET['start_date'] ?? date('Y-m-01');
+        $endDate = $_GET['end_date'] ?? date('Y-m-t');
+        $unit_id = $_GET['unit_id'] ?? '';
+        $report_type_id = $_GET['report_type_id'] ?? ''; // Filter by Report Type
+        
+        // 1. Get Groups & Items
+        $sql = "SELECT * FROM fin_report_groups WHERE 1=1";
+        $params = [];
+        
+        if ($report_type_id) {
+            $sql .= " AND report_type_id = ?";
+            $params[] = $report_type_id;
+        }
+        
+        $sql .= " ORDER BY sort_order ASC";
+        $stmtGroups = $pdo->prepare($sql);
+        $stmtGroups->execute($params);
+        $groups = $stmtGroups->fetchAll(PDO::FETCH_ASSOC);
+
+        $reportData = [];
+        $grandTotalSurplus = 0;
+
+        foreach ($groups as $group) {
+            $stmtItems = $pdo->prepare("
+                SELECT * FROM fin_report_group_items WHERE group_id = ? ORDER BY sort_order ASC
+            ");
+            $stmtItems->execute([$group['id']]);
+            $items = $stmtItems->fetchAll(PDO::FETCH_ASSOC);
+
+            $groupIncome = 0;
+            $groupExpense = 0;
+            $itemDetails = [];
+
+            foreach ($items as $item) {
+                $amount = 0;
+                $itemName = '';
+
+                if ($item['item_type'] == 'PAYMENT_TYPE') {
+                    // Student Bills Payments (fin_student_bills + fin_transactions check?)
+                    // Actually payments are recorded in fin_transactions linked to fin_student_bills linked to fin_payment_types
+                    // OR Ad-hoc payments in fin_transactions with description? 
+                    // Best way: JOIN fin_student_bills and check payment_type_id
+                    
+                    // Logic: Sum fin_transactions where type='INCOME' AND student_bill_id IS NOT NULL AND student_bill_id points to correct payment_type
+                    // Also Ad-hoc payments? They don't have student_bill_id usually? 
+                    // Wait, ad-hoc payments (Voluntary) usually don't have bills. They are just Transactions.
+                    // But our transaction table doesn't have 'payment_type_id'. 
+                    // It has 'category_id'.
+                    // Student Bills have 'payment_type_id'.
+                    
+                    // Complex Query needed:
+                    // 1. Transactions linked to Bills
+                    $sql1 = "
+                        SELECT SUM(t.amount) 
+                        FROM fin_transactions t
+                        JOIN fin_student_bills b ON t.student_bill_id = b.id
+                        WHERE t.type = 'INCOME' 
+                          AND b.payment_type_id = ? 
+                          AND t.trans_date BETWEEN ? AND ?
+                    ";
+                    $params1 = [$item['item_id'], $startDate . ' 00:00:00', $endDate . ' 23:59:59'];
+                    if ($unit_id) {
+                        $sql1 .= " AND t.unit_id = ?";
+                        $params1[] = $unit_id;
+                    }
+                    $stmt1 = $pdo->prepare($sql1);
+                    $stmt1->execute($params1);
+                    $amount += ($stmt1->fetchColumn() ?: 0);
+
+                    // 2. Transactions NOT linked to bills (Voluntary/Ad-hoc)?
+                    // Usually Voluntary payments are just inserted as INCOME.
+                    // But how do we know which Payment Type? 
+                    // Current system: Ad-hoc payment uses 'payment_type_id' in UI, but in DB?
+                    // Let's check 'pay_bill' action. 
+                    // If ad-hoc, it inserts transaction with description. No link to payment type ID in fin_transactions.
+                    // This is a flaw in current design if we want to report by Payment Type for ad-hoc.
+                    // However, maybe user selects Category?
+                    // In 'pay_bill', if ad-hoc, we don't save payment_type_id in transaction.
+                    // BUT we might save it in `category_id` if we map PaymentType to Category?
+                    // fin_payment_types has `category` field (string), not ID.
+                    
+                    // WORKAROUND: For now, assume Payment Types are only for BILLED items (SPP, etc).
+                    
+                    // Get Name
+                    $stmtName = $pdo->prepare("SELECT name FROM fin_payment_types WHERE id = ?");
+                    $stmtName->execute([$item['item_id']]);
+                    $itemName = $stmtName->fetchColumn();
+
+                    $groupIncome += $amount;
+
+                } elseif ($item['item_type'] == 'INCOME_CATEGORY') {
+                    // Simple: Transactions with this category_id and type='INCOME'
+                    $sql = "SELECT SUM(amount) FROM fin_transactions WHERE type='INCOME' AND category_id = ? AND trans_date BETWEEN ? AND ?";
+                    $params = [$item['item_id'], $startDate . ' 00:00:00', $endDate . ' 23:59:59'];
+                    if ($unit_id) {
+                        $sql .= " AND unit_id = ?";
+                        $params[] = $unit_id;
+                    }
+                    $stmt = $pdo->prepare($sql);
+                    $stmt->execute($params);
+                    $amount = $stmt->fetchColumn() ?: 0;
+
+                    $stmtName = $pdo->prepare("SELECT name FROM fin_categories WHERE id = ?");
+                    $stmtName->execute([$item['item_id']]);
+                    $itemName = $stmtName->fetchColumn();
+
+                    $groupIncome += $amount;
+
+                } elseif ($item['item_type'] == 'EXPENSE_CATEGORY') {
+                    // Simple: Transactions with this category_id and type='EXPENSE'
+                    $sql = "SELECT SUM(amount) FROM fin_transactions WHERE type='EXPENSE' AND category_id = ? AND trans_date BETWEEN ? AND ?";
+                    $params = [$item['item_id'], $startDate . ' 00:00:00', $endDate . ' 23:59:59'];
+                    if ($unit_id) {
+                        $sql .= " AND unit_id = ?";
+                        $params[] = $unit_id;
+                    }
+                    $stmt = $pdo->prepare($sql);
+                    $stmt->execute($params);
+                    $amount = $stmt->fetchColumn() ?: 0;
+
+                    $stmtName = $pdo->prepare("SELECT name FROM fin_categories WHERE id = ?");
+                    $stmtName->execute([$item['item_id']]);
+                    $itemName = $stmtName->fetchColumn();
+
+                    $groupExpense += $amount;
+                }
+
+                $itemDetails[] = [
+                    'name' => $itemName,
+                    'type' => $item['item_type'],
+                    'amount' => $amount
+                ];
+            }
+
+            $surplus = $groupIncome - $groupExpense;
+            $grandTotalSurplus += $surplus;
+
+            $reportData[] = [
+                'group_id' => $group['id'],
+                'group_name' => $group['name'],
+                'income' => $groupIncome,
+                'expense' => $groupExpense,
+                'surplus' => $surplus,
+                'items' => $itemDetails
+            ];
+        }
+
+        jsonResponse(true, 'Report generated', [
+            'groups' => $reportData,
+            'grand_total_surplus' => $grandTotalSurplus
+        ]);
+    }
+
 
 } catch (Exception $e) {
     if ($pdo->inTransaction()) $pdo->rollBack();

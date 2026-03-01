@@ -33,16 +33,44 @@ require_login_and_module('finance');
     <script src="https://cdn.tailwindcss.com"></script>
     <?php
         $serverName = $_SERVER['SERVER_NAME'] ?? '';
-        $isLocalEnv = (stripos($host, 'localhost') !== false || $host === '127.0.0.1');
-        $isTest = (!$isLocalEnv) && (preg_match('#^/AIStest/#i', $scriptName) || stripos($serverName, 'test') !== false);
-        $vueFile = $isLocalEnv || $isTest ? 'vue.global.js' : 'vue.global.prod.js';
+        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $isLocalEnv = (stripos($host, 'localhost') !== false || $host === '127.0.0.1' || strpos($host, '192.168.') !== false);
+        
+        // FORCE VUE DEV VERSION TO PREVENT BLANK SCREEN
+        // Because vue.global.prod.js does not exist in assets/js
+        $vueFile = 'vue.global.js'; 
     ?>
     <script src="<?php echo $baseUrl; ?>assets/js/<?php echo $vueFile; ?>"></script>
+    
+    <!-- FAILSAFE: If Vue fails to load locally, try CDN -->
+    <script>
+        if (typeof Vue === 'undefined') {
+            document.write('<script src="https://unpkg.com/vue@3/dist/vue.global.js"><\/script>');
+        }
+    </script>
+
     <link href="<?php echo $baseUrl; ?>assets/css/fontawesome.min.css" rel="stylesheet">
+    <!-- Fallback FontAwesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" onerror="this.style.display='none'">
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        
+        /* V-CLOAK HANDLING */
         [v-cloak] { display: none !important; }
+        
+        /* LOADING SPINNER WHEN CLOAKED */
+        [v-cloak]::before {
+            content: "Memuat Aplikasi...";
+            display: block;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #64748b;
+            font-weight: 600;
+            z-index: 9999;
+        }
         .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
         .fade-enter-from, .fade-leave-to { opacity: 0; }
         
@@ -78,4 +106,23 @@ require_login_and_module('finance');
     $envColor = $isLocalEnv ? '#475569' : ($isTest ? '#dc2626' : '#10b981');
 ?>
 <div class="hidden md:block" style="position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:1000;padding:8px 16px;border-radius:9999px;color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.15);letter-spacing:0.4px;font-size:12px;pointer-events:none;background: <?php echo $envColor; ?>"><?php echo $envLabel; ?></div>
+
+<!-- SAFETY NET SCRIPT: Remove Blank Screen if Vue Fails -->
+<script>
+    setTimeout(function() {
+        var app = document.getElementById('app');
+        if (app && app.hasAttribute('v-cloak')) {
+            console.warn('Vue.js took too long to load. Removing v-cloak manually.');
+            app.removeAttribute('v-cloak');
+            
+            // Optional: Show Error
+            var errDiv = document.createElement('div');
+            errDiv.style.cssText = 'position:fixed;top:0;left:0;width:100%;background:#fee2e2;color:#b91c1c;padding:10px;text-align:center;z-index:10000;border-bottom:1px solid #ef4444;';
+            errDiv.innerHTML = '<strong>Warning:</strong> Aplikasi berjalan lambat atau ada error. Cek koneksi internet Anda.';
+            document.body.appendChild(errDiv);
+            setTimeout(() => errDiv.remove(), 5000);
+        }
+    }, 3000); // 3 Seconds Timeout
+</script>
+
 <div id="app" v-cloak>
