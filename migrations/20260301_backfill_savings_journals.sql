@@ -4,16 +4,7 @@ SET @default_unit := (SELECT id FROM core_units WHERE code != 'YAYASAN' ORDER BY
 
 INSERT INTO fin_journals (unit_id, journal_number, journal_date, description, reference_type, reference_id, created_at)
 SELECT
-  COALESCE(
-    cp.unit_id,
-    (SELECT u.id
-     FROM acad_student_classes sc
-     JOIN acad_classes c ON sc.class_id = c.id
-     JOIN core_units u ON c.unit_id = u.id
-     WHERE sc.student_id = s.student_id AND sc.status = 'ACTIVE'
-     LIMIT 1),
-    @default_unit
-  ) AS unit_id,
+  COALESCE(cp.unit_id, @default_unit) AS unit_id,
   CONCAT('J', DATE_FORMAT(CURDATE(), '%y%m%d'), LPAD(FLOOR(RAND()*999999), 6, '0')) AS journal_number,
   COALESCE(s.trans_date, NOW()) AS journal_date,
   CONCAT('Tabungan ', IF(s.transaction_type = 'DEPOSIT', 'Setoran', 'Penarikan'), ' - ',
