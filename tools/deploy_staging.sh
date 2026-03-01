@@ -23,7 +23,11 @@ if [ -d "$TMP_DIR/.git" ]; then
 else
   rm -rf "$TMP_DIR"
   if [ -n "${GHTOKEN:-}" ]; then
-    git -c http.extraHeader="Authorization: bearer $GHTOKEN" clone "https://github.com/hirzie/AIS_project.git" "$TMP_DIR"
+    # Use PAT embedded in URL for clone to avoid interactive prompt
+    git clone "https://${GHTOKEN}@github.com/hirzie/AIS_project.git" "$TMP_DIR"
+    # After clone, set remote back to HTTPS without token and attach header for subsequent pulls
+    git -C "$TMP_DIR" remote set-url origin "https://github.com/hirzie/AIS_project.git"
+    git -C "$TMP_DIR" config --local http.extraHeader "Authorization: bearer $GHTOKEN"
   else
     GIT_SSH_COMMAND="ssh -i $SSH_KEY -o IdentitiesOnly=yes" git clone "$REPO_URL_SSH" "$TMP_DIR"
   fi
