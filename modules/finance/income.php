@@ -34,11 +34,10 @@ require_once '../../includes/header_finance.php';
                     <p class="text-xs text-green-600">Cari siswa dan pilih tagihan yang akan dibayar.</p>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">1. Jenis Transaksi</label>
-                    <select v-model="form.transaction_type" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-green-500 outline-none transition-all">
-                        <option value="INCOME">Penerimaan (Default)</option>
-                        <option value="ADJUSTMENT">Penyesuaian</option>
-                        <option value="OTHER">Lain-lain</option>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">1. Jenis Penerimaan</label>
+                    <select v-model="form.payment_type_id" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-green-500 outline-none transition-all">
+                        <option value="">-- Semua Jenis Penerimaan --</option>
+                        <option v-for="pt in paymentTypes" :key="pt.id" :value="pt.id">{{ pt.name }}</option>
                     </select>
                 </div>
                 <div>
@@ -78,10 +77,10 @@ require_once '../../includes/header_finance.php';
                     </div>
                 </div>
                 <div class="relative">
-                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">4. Pilih Tagihan ({{ unpaidBills.length }})</label>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">4. Pilih Tagihan ({{ filteredUnpaidBills.length }})</label>
                     <select v-model="form.bill_id" @change="onBillSelect" :disabled="!selectedStudent" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all disabled:bg-slate-100 disabled:text-slate-400">
                         <option value="">-- Pilih Item Pembayaran --</option>
-                        <option v-for="b in unpaidBills" :key="b.id" :value="b.id">
+                        <option v-for="b in filteredUnpaidBills" :key="b.id" :value="b.id">
                             {{ b.bill_name }} (Sisa: Rp {{ formatNumber(b.amount - b.amount_paid) }})
                         </option>
                     </select>
@@ -223,6 +222,7 @@ require_once '../../includes/header_finance.php';
                 globalDate: new Date().toISOString().split('T')[0],
                 baseUrl: (window.BASE_URL || (window.location.pathname.includes('/AIS/') ? '/AIS/' : '/')),
                 accounts: [],
+                paymentTypes: [],
                 units: [],
                 selectedUnitId: '',
                 studentSearch: '',
@@ -241,6 +241,7 @@ require_once '../../includes/header_finance.php';
                     student_name: '',
                     student_nis: '',
                     unit_id: '',
+                    payment_type_id: '', // New field
                     transaction_type: 'INCOME'
                 },
                 cart: []
@@ -252,6 +253,10 @@ require_once '../../includes/header_finance.php';
             },
             totalAmount() {
                 return this.cart.reduce((sum, item) => sum + Number(item.amount), 0);
+            },
+            filteredUnpaidBills() {
+                if (!this.form.payment_type_id) return this.unpaidBills;
+                return this.unpaidBills.filter(b => b.payment_type_id == this.form.payment_type_id);
             }
         },
         methods: {
@@ -308,6 +313,7 @@ require_once '../../includes/header_finance.php';
                     const data = await res.json();
                     if (data.success) {
                         this.units = data.data.units || [];
+                        this.paymentTypes = data.data.paymentTypes || [];
                     }
                 } catch (e) {}
             },
@@ -326,10 +332,22 @@ require_once '../../includes/header_finance.php';
                 this.selectedStudent = s;
                 this.studentSearch = '';
                 this.students = [];
+                // No need for detailed info yet, but good for badges
                 try {
-                    const res = await fetch(this.baseUrl + `api/finance.php?action=get_student_detail&student_id=${s.id}`);
-                    const data = await res.json();
-                    if (data.success) this.selectedStudentDetail = data.data;
+                    // Assuming get_student_detail is not in api/finance.php based on read file
+                    // But maybe it's implicitly handled or I should check.
+                    // Actually, finance.php doesn't have get_student_detail. 
+                    // Let's remove this call to avoid 404 if it doesn't exist.
+                    // Or keep it if it was working before.
+                    // The previous code had it. Let's assume it might be handled or fail silently.
+                    // But to be safe, let's use search result data which has some info.
+                    // Wait, previous code had it. I should check if it exists in api/finance.php.
+                    // It does NOT exist in the file I read.
+                    // I will remove it to prevent errors.
+                    // Instead, I'll rely on what search returns.
+                    // But search returns limited data.
+                    // Let's check `get_student_savings` which returns balance.
+                    // Let's skip detail fetch for now as it wasn't in the provided api/finance.php
                 } catch (e) {}
                 this.fetchUnpaidBills(s.id);
             },
@@ -340,10 +358,11 @@ require_once '../../includes/header_finance.php';
             },
             async fetchUnpaidBills(studentId) {
                 try {
-                    const res = await fetch(this.baseUrl + `api/finance.php?action=get_unpaid_bills&student_id=${studentId}`);
+                    const res = await fetch(this.baseUrl + `api/finance.php?action=get_student_bills&student_id=${studentId}`);
                     const data = await res.json();
                     if (data.success) {
-                        this.unpaidBills = data.data;
+                        // Filter only unpaid or partial
+                        this.unpaidBills = (data.data.bills || []).filter(b => b.status !== 'PAID');
                     }
                 } catch (e) {}
             },
@@ -354,6 +373,7 @@ require_once '../../includes/header_finance.php';
                 this.form.amount = String(Math.max(0, bill.amount - bill.amount_paid));
                 this.form.student_name = this.selectedStudent?.name || '';
                 this.form.student_nis = this.selectedStudent?.identity_number || '';
+                this.form.payment_type_id = bill.payment_type_id; // Auto select type
                 
                 // Auto-set Unit based on selected student/unit selection if empty
                 if (!this.form.unit_id && this.selectedUnitId) {
@@ -372,12 +392,15 @@ require_once '../../includes/header_finance.php';
                 
                 // Keep Unit & Type for easier subsequent entry, clear others
                 const prevUnit = this.form.unit_id;
-                const prevType = this.form.transaction_type;
+                const prevType = this.form.payment_type_id; // Keep payment type too? Or reset?
+                // Maybe reset payment type if they want to pay different bill?
+                // But usually one student pays multiple SPP (same type) or SPP + Gedung (diff type).
+                // Let's keep unit, reset bill-specifics.
                 
                 this.form = { 
                     bill_id: '', amount: '', discount_amount: 0, cash_account_id: '', 
                     description: '', bill_name: '', student_name: '', student_nis: '',
-                    unit_id: prevUnit, transaction_type: prevType
+                    unit_id: prevUnit, payment_type_id: '', transaction_type: 'INCOME'
                 };
             },
             removeFromCart(index) {
@@ -390,20 +413,35 @@ require_once '../../includes/header_finance.php';
             async saveTransaction() {
                 if (!confirm('Proses pembayaran ini?')) return;
                 try {
-                    for (const item of this.cart) {
-                        const res = await fetch(this.baseUrl + 'api/finance.php?action=save_income', {
-                            method: 'POST',
-                            body: JSON.stringify({
-                                date: this.globalDate,
-                                item: item
-                            })
-                        });
-                        const data = await res.json();
-                        if (!data.success) throw new Error(data.message);
+                    // Group by Bill? Or just send one by one?
+                    // API pay_bill supports batch items or single.
+                    // Let's send all as one batch to api/finance.php?action=pay_bill
+                    
+                    const payload = {
+                        date: this.globalDate,
+                        items: this.cart.map(item => ({
+                            bill_id: item.bill_id,
+                            amount: item.amount,
+                            discount_amount: item.discount_amount,
+                            cash_account_id: item.cash_account_id,
+                            description: item.description,
+                            unit_id: item.unit_id
+                        }))
+                    };
+
+                    const res = await fetch(this.baseUrl + 'api/finance.php?action=pay_bill', {
+                        method: 'POST',
+                        body: JSON.stringify(payload)
+                    });
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                        alert('Pembayaran berhasil diproses! Transaksi: ' + (data.data.trans_number || ''));
+                        this.cart = [];
+                        this.resetStudent();
+                    } else {
+                        throw new Error(data.message);
                     }
-                    alert('Pembayaran berhasil diproses!');
-                    this.cart = [];
-                    this.resetStudent();
                 } catch (e) {
                     alert('ERROR: ' + e.message);
                 }
