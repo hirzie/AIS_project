@@ -34,14 +34,22 @@ require_once '../../includes/header_finance.php';
                     <p class="text-xs text-green-600">Cari siswa dan pilih tagihan yang akan dibayar.</p>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">1. Pilih Unit <span v-if="units.length === 0" class="text-red-500 text-[10px]">(Loading...)</span></label>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">1. Jenis Transaksi</label>
+                    <select v-model="form.transaction_type" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-green-500 outline-none transition-all">
+                        <option value="INCOME">Penerimaan (Default)</option>
+                        <option value="ADJUSTMENT">Penyesuaian</option>
+                        <option value="OTHER">Lain-lain</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">2. Pilih Unit <span v-if="units.length === 0" class="text-red-500 text-[10px]">(Loading...)</span></label>
                     <select v-model="selectedUnitId" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-green-500 outline-none transition-all">
                         <option value="">-- Semua Unit ({{ units.length }}) --</option>
                         <option v-for="u in units" :key="u.id" :value="u.id">{{ u.name }}</option>
                     </select>
                 </div>
                 <div class="relative">
-                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">2. Cari Siswa</label>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">3. Cari Siswa</label>
                     <div class="relative">
                         <input type="text" v-model="studentSearch" @input="searchStudents" placeholder="Ketik Nama atau NIS..." class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm font-bold text-slate-700 focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all">
                         <i class="fas fa-search absolute left-3 top-3 text-slate-400"></i>
@@ -70,7 +78,7 @@ require_once '../../includes/header_finance.php';
                     </div>
                 </div>
                 <div class="relative">
-                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">3. Pilih Tagihan ({{ unpaidBills.length }})</label>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">4. Pilih Tagihan ({{ unpaidBills.length }})</label>
                     <select v-model="form.bill_id" @change="onBillSelect" :disabled="!selectedStudent" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all disabled:bg-slate-100 disabled:text-slate-400">
                         <option value="">-- Pilih Item Pembayaran --</option>
                         <option v-for="b in unpaidBills" :key="b.id" :value="b.id">
@@ -80,7 +88,7 @@ require_once '../../includes/header_finance.php';
                 </div>
                 <div class="space-y-3">
                     <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">4a. Nominal Bayar (Rp)</label>
+                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">5a. Nominal Bayar (Rp)</label>
                         <div class="relative">
                             <span class="absolute left-3 top-2.5 font-bold text-slate-400">Rp</span>
                             <input type="number" v-model="form.amount" class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-lg font-bold text-slate-800 focus:border-green-500 outline-none" placeholder="0">
@@ -91,7 +99,7 @@ require_once '../../includes/header_finance.php';
                         <label for="chkDiscount" class="text-sm text-slate-600 font-medium select-none">Gunakan Diskon / Potongan</label>
                     </div>
                     <div v-if="showDiscount" class="animate-fade">
-                        <label class="block text-xs font-bold text-yellow-600 mb-1 uppercase">4b. Nominal Diskon (Rp)</label>
+                        <label class="block text-xs font-bold text-yellow-600 mb-1 uppercase">5b. Nominal Diskon (Rp)</label>
                         <div class="relative">
                             <span class="absolute left-3 top-2.5 font-bold text-yellow-500">Rp</span>
                             <input type="number" v-model="form.discount_amount" class="w-full pl-10 pr-4 py-2.5 border border-yellow-300 bg-yellow-50 rounded-lg text-lg font-bold text-yellow-800 focus:border-yellow-500 outline-none" placeholder="0">
@@ -99,14 +107,14 @@ require_once '../../includes/header_finance.php';
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">5. Masuk ke Akun (Debit)</label>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">6. Masuk ke Akun (Debit)</label>
                     <select v-model="form.cash_account_id" class="w-full border border-slate-300 bg-blue-50 rounded-lg px-3 py-2.5 text-sm font-bold text-blue-800 focus:border-blue-500 outline-none">
                         <option value="">-- Pilih Akun Kas/Bank --</option>
                         <option v-for="acc in cashAccounts" :key="acc.id" :value="acc.id">{{ acc.code }} - {{ acc.name }}</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">6. Catatan (Opsional)</label>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">7. Catatan (Opsional)</label>
                     <textarea v-model="form.description" rows="2" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all" placeholder="Keterangan tambahan..."></textarea>
                 </div>
                 <button @click="addToCart" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-lg">
@@ -142,6 +150,7 @@ require_once '../../includes/header_finance.php';
                                 <tr>
                                     <th class="px-4 py-3 w-10 text-center">#</th>
                                     <th class="px-4 py-3">Siswa</th>
+                                    <th class="px-4 py-3">Unit/Tipe</th>
                                     <th class="px-4 py-3">Pembayaran</th>
                                     <th class="px-4 py-3">Akun Masuk</th>
                                     <th class="px-4 py-3 text-right">Jumlah</th>
@@ -154,6 +163,10 @@ require_once '../../includes/header_finance.php';
                                     <td class="px-4 py-3">
                                         <div class="font-bold text-slate-700">{{ item.student_name }}</div>
                                         <div class="text-xs text-slate-500">{{ item.student_nis }}</div>
+                                    </td>
+                                    <td class="px-4 py-3">
+                                        <div class="text-xs font-bold text-slate-700">{{ getUnitName(item.unit_id) }}</div>
+                                        <div class="text-[10px] text-slate-400 uppercase">{{ item.transaction_type }}</div>
                                     </td>
                                     <td class="px-4 py-3">
                                         <div class="text-slate-700 font-medium">{{ item.bill_name }}</div>
@@ -173,7 +186,7 @@ require_once '../../includes/header_finance.php';
                                     </td>
                                 </tr>
                                 <tr v-if="cart.length === 0">
-                                    <td colspan="6" class="px-6 py-12 text-center text-slate-400 italic">
+                                    <td colspan="7" class="px-6 py-12 text-center text-slate-400 italic">
                                         <div class="flex flex col items-center">
                                             <i class="fas fa-file-invoice text-4xl mb-3 opacity-20"></i>
                                             <p>Belum ada item ditambahkan.</p>
@@ -226,7 +239,9 @@ require_once '../../includes/header_finance.php';
                     description: '',
                     bill_name: '',
                     student_name: '',
-                    student_nis: ''
+                    student_nis: '',
+                    unit_id: '',
+                    transaction_type: 'INCOME'
                 },
                 cart: []
             }
@@ -242,6 +257,11 @@ require_once '../../includes/header_finance.php';
         methods: {
             formatNumber(num) {
                 return new Intl.NumberFormat('id-ID').format(num);
+            },
+            getUnitName(id) {
+                if (!id) return '-';
+                const u = this.units.find(x => x.id == id);
+                return u ? u.name : '-';
             },
             showAsramaBadge() {
                 const d = this.selectedStudentDetail;
@@ -334,15 +354,31 @@ require_once '../../includes/header_finance.php';
                 this.form.amount = String(Math.max(0, bill.amount - bill.amount_paid));
                 this.form.student_name = this.selectedStudent?.name || '';
                 this.form.student_nis = this.selectedStudent?.identity_number || '';
+                
+                // Auto-set Unit based on selected student/unit selection if empty
+                if (!this.form.unit_id && this.selectedUnitId) {
+                    this.form.unit_id = this.selectedUnitId;
+                } else if (!this.form.unit_id && this.selectedStudent && this.selectedStudent.unit_id) {
+                    this.form.unit_id = this.selectedStudent.unit_id;
+                }
             },
             addToCart() {
-                if (!this.form.bill_id || !this.form.amount || !this.form.cash_account_id) {
-                    alert('Mohon isi semua data wajib.');
+                if (!this.form.bill_id || !this.form.amount || !this.form.cash_account_id || !this.form.unit_id) {
+                    alert('Mohon isi semua data wajib (termasuk Unit).');
                     return;
                 }
                 const item = { ...this.form };
                 this.cart.push(item);
-                this.form = { bill_id: '', amount: '', discount_amount: 0, cash_account_id: '', description: '', bill_name: '', student_name: '', student_nis: '' };
+                
+                // Keep Unit & Type for easier subsequent entry, clear others
+                const prevUnit = this.form.unit_id;
+                const prevType = this.form.transaction_type;
+                
+                this.form = { 
+                    bill_id: '', amount: '', discount_amount: 0, cash_account_id: '', 
+                    description: '', bill_name: '', student_name: '', student_nis: '',
+                    unit_id: prevUnit, transaction_type: prevType
+                };
             },
             removeFromCart(index) {
                 this.cart.splice(index, 1);
