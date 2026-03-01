@@ -1,14 +1,7 @@
 <?php
+require_once '../../includes/guard.php';
+require_login_and_module('finance');
 require_once '../../config/database.php';
-// Fix for session save path error - use local project directory
-$sessPath = __DIR__ . '/../../sessions';
-if (file_exists($sessPath)) { session_save_path($sessPath); }
-elseif (file_exists('C:/xampp/tmp')) { session_save_path('C:/xampp/tmp'); }
-session_start();
-if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'] ?? '', ['SUPERADMIN', 'ADMIN', 'FINANCE'])) {
-    header("Location: ../../login.php");
-    exit;
-}
 require_once '../../includes/header_finance.php';
 ?>
 

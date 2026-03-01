@@ -321,21 +321,28 @@ require_once '../../includes/header_finance.php';
                 };
 
                 try {
+                    console.log('Sending payload:', payload);
                     const res = await fetch(`${window.BASE_URL}api/finance.php?action=generate_bills`, {
                         method: 'POST',
                         headers: {'Content-Type': 'application/json'},
                         body: JSON.stringify(payload)
                     });
                     const data = await res.json();
+                    console.log('Response:', data);
+                    
                     if (data.success) {
                         this.generatedResults = data.data || [];
-                        this.showResultModal = true;
+                        if (this.generatedResults.length === 0) {
+                            alert('Proses selesai, namun tidak ada tagihan baru yang dibuat. Kemungkinan tagihan untuk periode ini sudah ada sebelumnya.');
+                        } else {
+                            this.showResultModal = true;
+                        }
                     } else {
                         alert(data.message || 'Gagal generate');
                     }
                 } catch (e) {
                     console.error(e);
-                    alert('Terjadi kesalahan saat generate');
+                    alert('Terjadi kesalahan saat generate: ' + e.message);
                 }
             }
         },

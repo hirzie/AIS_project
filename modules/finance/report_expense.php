@@ -3,7 +3,6 @@ require_once '../../config/database.php';
 require_once '../../includes/header_finance.php';
 ?>
 
-<div id="reportApp" class="flex flex-col h-screen overflow-hidden bg-slate-50" v-cloak>
     <nav class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 z-20 shadow-sm relative shrink-0">
         <div class="flex items-center gap-4">
             <a href="<?php echo $baseUrl; ?>modules/finance/dashboard.php" class="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center text-slate-600 hover:bg-slate-200 hover:text-blue-600 transition-colors">
@@ -150,7 +149,6 @@ require_once '../../includes/header_finance.php';
             </div>
         </div>
     </div>
-</div>
 
 <script>
     const { createApp } = Vue
@@ -275,7 +273,7 @@ require_once '../../includes/header_finance.php';
                 }
             }
         }
-    }).mount('#reportApp')
+    }).mount('#app')
 </script>
 <?php require_once '../../includes/footer_finance.php'; ?>
     </body>

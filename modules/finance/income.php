@@ -33,13 +33,17 @@ require_once '../../includes/header_finance.php';
                     <h3 class="font-bold text-green-800 text-sm mb-1"><i class="fas fa-edit mr-1"></i> Input Penerimaan</h3>
                     <p class="text-xs text-green-600">Cari siswa dan pilih tagihan yang akan dibayar.</p>
                 </div>
+                
+                <!-- Step 1: Kategori -->
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">1. Jenis Penerimaan</label>
-                    <select v-model="form.payment_type_id" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-green-500 outline-none transition-all">
-                        <option value="">-- Semua Jenis Penerimaan --</option>
-                        <option v-for="pt in paymentTypes" :key="pt.id" :value="pt.id">{{ pt.name }}</option>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">1. Kategori Penerimaan</label>
+                    <select v-model="selectedCategory" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-green-500 outline-none transition-all">
+                        <option value="">-- Semua Kategori --</option>
+                        <option v-for="(label, code) in categoryMap" :key="code" :value="code">{{ label }}</option>
                     </select>
                 </div>
+
+                <!-- Step 2: Pilih Unit -->
                 <div>
                     <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">2. Pilih Unit <span v-if="units.length === 0" class="text-red-500 text-[10px]">(Loading...)</span></label>
                     <select v-model="selectedUnitId" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-green-500 outline-none transition-all">
@@ -47,7 +51,9 @@ require_once '../../includes/header_finance.php';
                         <option v-for="u in units" :key="u.id" :value="u.id">{{ u.name }}</option>
                     </select>
                 </div>
-                <div class="relative">
+
+                <!-- Step 3: Cari Siswa (Hidden for OTHER) -->
+                <div v-if="!selectedCategory.includes('OTHER')" class="relative">
                     <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">3. Cari Siswa</label>
                     <div class="relative">
                         <input type="text" v-model="studentSearch" @input="searchStudents" placeholder="Ketik Nama atau NIS..." class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm font-bold text-slate-700 focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all">
@@ -67,7 +73,7 @@ require_once '../../includes/header_finance.php';
                     </div>
                     <div v-if="selectedStudent" class="mt-2 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-3">
                         <div class="w-10 h-10 rounded-full bg-white border-2 border-green-200 overflow-hidden">
-                             <img :src="'https://ui-avatars.com/api/?name=' + selectedStudent.name + '&background=random'" class="w-full h-full object-cover">
+                            <img :src="'https://ui-avatars.com/api/?name=' + selectedStudent.name + '&background=random'" class="w-full h-full object-cover">
                         </div>
                         <div class="flex-1">
                             <div class="font-bold text-green-800 text-sm">{{ selectedStudent.name }}</div>
@@ -76,7 +82,9 @@ require_once '../../includes/header_finance.php';
                         <button @click="resetStudent" class="text-green-400 hover:text-green-600"><i class="fas fa-times-circle"></i></button>
                     </div>
                 </div>
-                <div class="relative">
+                
+                <!-- Step 4: Pilih Tagihan (MANDATORY) -->
+                <div v-if="!selectedCategory.includes('OTHER') && !selectedCategory.includes('VOLUNTARY')" class="relative">
                     <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">4. Pilih Tagihan ({{ filteredUnpaidBills.length }})</label>
                     <select v-model="form.bill_id" @change="onBillSelect" :disabled="!selectedStudent" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all disabled:bg-slate-100 disabled:text-slate-400">
                         <option value="">-- Pilih Item Pembayaran --</option>
@@ -85,19 +93,45 @@ require_once '../../includes/header_finance.php';
                         </option>
                     </select>
                 </div>
+                
+                <!-- Step 3/4: OTHER Flows -->
+                <div v-if="selectedCategory.includes('OTHER')" class="space-y-4">
+                    <div class="relative">
+                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">3. Jenis Penerimaan</label>
+                        <select v-model="form.payment_type_id" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-green-500 outline-none transition-all">
+                            <option value="">-- Pilih Jenis --</option>
+                            <option v-for="pt in filteredPaymentTypes" :key="pt.id" :value="pt.id">{{ pt.name }}</option>
+                        </select>
+                    </div>
+                    <div class="relative">
+                         <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">4. Nama Penyetor / Sumber Dana</label>
+                         <input type="text" v-model="form.student_name" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm font-bold text-slate-700 focus:border-green-500 outline-none" placeholder="Contoh: Hamba Allah, Dinas Pendidikan, dll">
+                    </div>
+                </div>
+
+                <!-- Step 4: VOLUNTARY Flows -->
+                <div v-if="selectedCategory.includes('VOLUNTARY')" class="relative">
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">4. Jenis Penerimaan</label>
+                    <select v-model="form.payment_type_id" :disabled="!selectedStudent" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm font-bold text-slate-700 focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all disabled:bg-slate-100 disabled:text-slate-400">
+                        <option value="">-- Pilih Jenis --</option>
+                        <option v-for="pt in filteredPaymentTypes" :key="pt.id" :value="pt.id">{{ pt.name }}</option>
+                    </select>
+                </div>
+                
+                <!-- Step 5: Nominal & Diskon -->
                 <div class="space-y-3">
                     <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">5a. Nominal Bayar (Rp)</label>
+                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">{{ selectedCategory.includes('OTHER') ? '5' : '5a' }}. Nominal Bayar (Rp)</label>
                         <div class="relative">
                             <span class="absolute left-3 top-2.5 font-bold text-slate-400">Rp</span>
                             <input type="number" v-model="form.amount" class="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-lg font-bold text-slate-800 focus:border-green-500 outline-none" placeholder="0">
                         </div>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <div v-if="!selectedCategory.includes('OTHER')" class="flex items-center gap-2">
                         <input type="checkbox" id="chkDiscount" v-model="showDiscount" class="w-4 h-4 text-green-600 rounded border-slate-300 focus:ring-green-500">
                         <label for="chkDiscount" class="text-sm text-slate-600 font-medium select-none">Gunakan Diskon / Potongan</label>
                     </div>
-                    <div v-if="showDiscount" class="animate-fade">
+                    <div v-if="showDiscount && !selectedCategory.includes('OTHER')" class="animate-fade">
                         <label class="block text-xs font-bold text-yellow-600 mb-1 uppercase">5b. Nominal Diskon (Rp)</label>
                         <div class="relative">
                             <span class="absolute left-3 top-2.5 font-bold text-yellow-500">Rp</span>
@@ -105,15 +139,19 @@ require_once '../../includes/header_finance.php';
                         </div>
                     </div>
                 </div>
+
+                <!-- Step 6: Akun Kas -->
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">6. Masuk ke Akun (Debit)</label>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">{{ selectedCategory.includes('OTHER') ? '6' : '6' }}. Masuk ke Akun (Debit)</label>
                     <select v-model="form.cash_account_id" class="w-full border border-slate-300 bg-blue-50 rounded-lg px-3 py-2.5 text-sm font-bold text-blue-800 focus:border-blue-500 outline-none">
                         <option value="">-- Pilih Akun Kas/Bank --</option>
                         <option v-for="acc in cashAccounts" :key="acc.id" :value="acc.id">{{ acc.code }} - {{ acc.name }}</option>
                     </select>
                 </div>
+
+                <!-- Step 7: Catatan -->
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">7. Catatan (Opsional)</label>
+                    <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">{{ selectedCategory.includes('OTHER') ? '7' : '7' }}. Catatan (Opsional)</label>
                     <textarea v-model="form.description" rows="2" class="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none transition-all" placeholder="Keterangan tambahan..."></textarea>
                 </div>
                 <button @click="addToCart" class="w-full bg-slate-800 text-white py-3 rounded-xl font-bold hover:bg-slate-900 transition-all flex items-center justify-center gap-2 shadow-lg">
@@ -211,6 +249,64 @@ require_once '../../includes/header_finance.php';
             </div>
         </div>
     </main>
+
+    <!-- Confirm Modal -->
+    <div v-if="showConfirmModal" class="fixed inset-0 bg-black/20 z-50 flex items-center justify-center p-4 backdrop-blur-[2px]">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 border border-slate-100">
+            <div class="p-6">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="w-12 h-12 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center shrink-0">
+                        <i class="fas fa-question text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">Konfirmasi Pembayaran</h3>
+                        <p class="text-xs text-slate-500">Mohon periksa kembali data sebelum memproses.</p>
+                    </div>
+                </div>
+                
+                <div class="bg-slate-50 rounded-lg p-3 mb-6 border border-slate-100 max-h-40 overflow-y-auto">
+                    <div v-for="(item, idx) in cart" :key="idx" class="flex justify-between items-start mb-2 last:mb-0 border-b last:border-0 border-slate-100 pb-2 last:pb-0">
+                        <div>
+                            <div class="text-xs font-bold text-slate-700">{{ item.bill_name }}</div>
+                            <div class="text-[10px] text-slate-500">{{ item.student_name }}</div>
+                        </div>
+                        <div class="text-xs font-bold text-slate-700">Rp {{ formatNumber(item.amount) }}</div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center mb-6 px-1">
+                    <span class="text-sm font-bold text-slate-500">Total Nominal</span>
+                    <span class="text-xl font-bold text-green-600">Rp {{ formatNumber(totalAmount) }}</span>
+                </div>
+
+                <div class="flex gap-3">
+                    <button @click="showConfirmModal = false" :disabled="isProcessing" class="flex-1 px-4 py-3 border border-slate-300 rounded-xl text-slate-600 font-bold hover:bg-slate-50 transition-colors disabled:opacity-50">
+                        Batal
+                    </button>
+                    <button @click="processTransaction" :disabled="isProcessing" class="flex-1 px-4 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-green-200 disabled:opacity-50 disabled:shadow-none">
+                        <span v-if="isProcessing" class="animate-spin"><i class="fas fa-spinner"></i></span>
+                        <span>{{ isProcessing ? 'Memproses...' : 'Ya, Proses' }}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div v-if="showSuccessModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all scale-100">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                    <i class="fas fa-check text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 mb-2">Pembayaran Berhasil!</h3>
+                <p class="text-sm text-slate-600 mb-6">Transaksi berhasil disimpan.<br>No. Transaksi: <span class="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-1 rounded">{{ lastTransNumber }}</span></p>
+                <button @click="closeSuccessModal" class="w-full px-4 py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-colors shadow-lg">
+                    Selesai & Input Baru
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -229,6 +325,14 @@ require_once '../../includes/header_finance.php';
                 students: [],
                 selectedStudent: null,
                 selectedStudentDetail: null,
+                selectedCategory: 'MANDATORY_STUDENT', // Default to Iuran Wajib
+                categoryMap: {
+                    'MANDATORY_STUDENT': 'Iuran Wajib Siswa',
+                    'VOLUNTARY_STUDENT': 'Iuran Sukarela Siswa',
+                    'MANDATORY_PROSPECT': 'Iuran Wajib Calon Siswa',
+                    'VOLUNTARY_PROSPECT': 'Iuran Sukarela Calon Siswa',
+                    'OTHER': 'Penerimaan Lainnya'
+                },
                 unpaidBills: [],
                 showDiscount: false,
                 form: {
@@ -241,13 +345,21 @@ require_once '../../includes/header_finance.php';
                     student_name: '',
                     student_nis: '',
                     unit_id: '',
-                    payment_type_id: '', // New field
+                    payment_type_id: '',
                     transaction_type: 'INCOME'
                 },
-                cart: []
+                cart: [],
+                showConfirmModal: false,
+                showSuccessModal: false,
+                isProcessing: false,
+                lastTransNumber: ''
             }
         },
         computed: {
+            filteredPaymentTypes() {
+                if (!this.selectedCategory) return [];
+                return this.paymentTypes.filter(pt => pt.category === this.selectedCategory);
+            },
             cashAccounts() {
                 return this.accounts.filter(a => a.code.startsWith('11') && a.type === 'ASSET');
             },
@@ -255,8 +367,8 @@ require_once '../../includes/header_finance.php';
                 return this.cart.reduce((sum, item) => sum + Number(item.amount), 0);
             },
             filteredUnpaidBills() {
-                if (!this.form.payment_type_id) return this.unpaidBills;
-                return this.unpaidBills.filter(b => b.payment_type_id == this.form.payment_type_id);
+                if (!this.selectedCategory) return this.unpaidBills;
+                return this.unpaidBills.filter(b => b.category === this.selectedCategory);
             }
         },
         methods: {
@@ -332,23 +444,6 @@ require_once '../../includes/header_finance.php';
                 this.selectedStudent = s;
                 this.studentSearch = '';
                 this.students = [];
-                // No need for detailed info yet, but good for badges
-                try {
-                    // Assuming get_student_detail is not in api/finance.php based on read file
-                    // But maybe it's implicitly handled or I should check.
-                    // Actually, finance.php doesn't have get_student_detail. 
-                    // Let's remove this call to avoid 404 if it doesn't exist.
-                    // Or keep it if it was working before.
-                    // The previous code had it. Let's assume it might be handled or fail silently.
-                    // But to be safe, let's use search result data which has some info.
-                    // Wait, previous code had it. I should check if it exists in api/finance.php.
-                    // It does NOT exist in the file I read.
-                    // I will remove it to prevent errors.
-                    // Instead, I'll rely on what search returns.
-                    // But search returns limited data.
-                    // Let's check `get_student_savings` which returns balance.
-                    // Let's skip detail fetch for now as it wasn't in the provided api/finance.php
-                } catch (e) {}
                 this.fetchUnpaidBills(s.id);
             },
             resetStudent() {
@@ -361,7 +456,6 @@ require_once '../../includes/header_finance.php';
                     const res = await fetch(this.baseUrl + `api/finance.php?action=get_student_bills&student_id=${studentId}`);
                     const data = await res.json();
                     if (data.success) {
-                        // Filter only unpaid or partial
                         this.unpaidBills = (data.data.bills || []).filter(b => b.status !== 'PAID');
                     }
                 } catch (e) {}
@@ -373,29 +467,62 @@ require_once '../../includes/header_finance.php';
                 this.form.amount = String(Math.max(0, bill.amount - bill.amount_paid));
                 this.form.student_name = this.selectedStudent?.name || '';
                 this.form.student_nis = this.selectedStudent?.identity_number || '';
-                this.form.payment_type_id = bill.payment_type_id; // Auto select type
+                this.form.payment_type_id = bill.payment_type_id; 
                 
-                // Auto-set Unit based on selected student/unit selection if empty
-                if (!this.form.unit_id && this.selectedUnitId) {
-                    this.form.unit_id = this.selectedUnitId;
-                } else if (!this.form.unit_id && this.selectedStudent && this.selectedStudent.unit_id) {
-                    this.form.unit_id = this.selectedStudent.unit_id;
+                if (!this.form.unit_id) {
+                     if (this.selectedUnitId) {
+                         this.form.unit_id = this.selectedUnitId;
+                     } else if (this.selectedStudent && this.selectedStudent.unit_id) {
+                         this.form.unit_id = this.selectedStudent.unit_id;
+                     }
                 }
             },
             addToCart() {
-                if (!this.form.bill_id || !this.form.amount || !this.form.cash_account_id || !this.form.unit_id) {
-                    alert('Mohon isi semua data wajib (termasuk Unit).');
+                if (!this.form.cash_account_id || !this.form.amount) {
+                    alert('Mohon isi Nominal dan Akun Kas.');
                     return;
                 }
+
+                if (!this.form.unit_id && !this.selectedCategory.includes('OTHER') && !this.selectedCategory.includes('VOLUNTARY')) {
+                     alert('Mohon pilih unit.');
+                     return;
+                }
+                
+                if (!this.selectedCategory.includes('OTHER') && !this.selectedCategory.includes('VOLUNTARY')) {
+                     if (!this.form.bill_id) {
+                         alert('Mohon pilih tagihan siswa.');
+                         return;
+                     }
+                } else {
+                    if (!this.form.payment_type_id) {
+                        alert('Mohon pilih Jenis Penerimaan.');
+                        return;
+                    }
+                    if (this.selectedCategory.includes('OTHER') && !this.form.student_name) {
+                        alert('Mohon isi Nama Penyetor / Sumber Dana.');
+                        return;
+                    }
+                    const pt = this.filteredPaymentTypes.find(p => p.id === this.form.payment_type_id);
+                    this.form.bill_name = pt ? pt.name : (this.selectedCategory.includes('VOLUNTARY') ? 'Iuran Sukarela' : 'Penerimaan Lainnya');
+                    
+                    if (this.selectedCategory.includes('VOLUNTARY')) {
+                         this.form.student_name = this.selectedStudent ? this.selectedStudent.name : '';
+                         this.form.student_nis = this.selectedStudent ? this.selectedStudent.identity_number : '';
+                         
+                         if (!this.form.unit_id && this.selectedStudent && this.selectedStudent.unit_id) {
+                             this.form.unit_id = this.selectedStudent.unit_id;
+                         } else if (!this.form.unit_id && this.selectedUnitId) {
+                             this.form.unit_id = this.selectedUnitId;
+                         }
+                    }
+                    
+                    this.form.transaction_type = this.selectedCategory.includes('VOLUNTARY') ? 'INCOME_VOLUNTARY' : 'INCOME_OTHER';
+                }
+
                 const item = { ...this.form };
                 this.cart.push(item);
                 
-                // Keep Unit & Type for easier subsequent entry, clear others
                 const prevUnit = this.form.unit_id;
-                const prevType = this.form.payment_type_id; // Keep payment type too? Or reset?
-                // Maybe reset payment type if they want to pay different bill?
-                // But usually one student pays multiple SPP (same type) or SPP + Gedung (diff type).
-                // Let's keep unit, reset bill-specifics.
                 
                 this.form = { 
                     bill_id: '', amount: '', discount_amount: 0, cash_account_id: '', 
@@ -410,13 +537,16 @@ require_once '../../includes/header_finance.php';
                 const acc = this.accounts.find(a => a.id == id);
                 return acc ? `${acc.code} - ${acc.name}` : '-';
             },
-            async saveTransaction() {
-                if (!confirm('Proses pembayaran ini?')) return;
+            saveTransaction() {
+                if (this.cart.length === 0) {
+                    alert('Tidak ada item yang akan diproses.');
+                    return;
+                }
+                this.showConfirmModal = true;
+            },
+            async processTransaction() {
+                this.isProcessing = true;
                 try {
-                    // Group by Bill? Or just send one by one?
-                    // API pay_bill supports batch items or single.
-                    // Let's send all as one batch to api/finance.php?action=pay_bill
-                    
                     const payload = {
                         date: this.globalDate,
                         items: this.cart.map(item => ({
@@ -425,7 +555,8 @@ require_once '../../includes/header_finance.php';
                             discount_amount: item.discount_amount,
                             cash_account_id: item.cash_account_id,
                             description: item.description,
-                            unit_id: item.unit_id
+                            unit_id: item.unit_id,
+                            payment_type_id: item.payment_type_id
                         }))
                     };
 
@@ -436,15 +567,32 @@ require_once '../../includes/header_finance.php';
                     const data = await res.json();
                     
                     if (data.success) {
-                        alert('Pembayaran berhasil diproses! Transaksi: ' + (data.data.trans_number || ''));
-                        this.cart = [];
-                        this.resetStudent();
+                        this.lastTransNumber = data.data.trans_number || '-';
+                        this.showConfirmModal = false;
+                        this.showSuccessModal = true;
+                        
+                        // Callback Logic: Maintain state for consecutive entries
+                        if (payload.items.length > 0) {
+                            const last = payload.items[payload.items.length-1];
+                            if (!this.selectedUnitId && last.unit_id) {
+                                this.selectedUnitId = last.unit_id;
+                            }
+                        }
                     } else {
-                        throw new Error(data.message);
+                        alert(data.message || 'Gagal memproses pembayaran');
+                        this.showConfirmModal = false;
                     }
                 } catch (e) {
-                    alert('ERROR: ' + e.message);
+                    alert('Terjadi kesalahan sistem: ' + e.message);
+                    this.showConfirmModal = false;
+                } finally {
+                    this.isProcessing = false;
                 }
+            },
+            closeSuccessModal() {
+                this.showSuccessModal = false;
+                this.cart = [];
+                this.resetStudent();
             }
         },
         mounted() {
@@ -452,7 +600,3 @@ require_once '../../includes/header_finance.php';
         }
     }).mount('#app')
 </script>
-</div> <!-- Close .flex container -->
-<?php require_once '../../includes/footer_finance.php'; ?>
-    </body>
-    </html>

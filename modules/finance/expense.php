@@ -263,6 +263,64 @@ require_once '../../includes/header_finance.php';
 
     </main>
 
+    <!-- Confirm Modal -->
+    <div v-if="showConfirmModal" class="fixed inset-0 bg-black/20 z-50 flex items-center justify-center p-4 backdrop-blur-[2px]">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 border border-slate-100">
+            <div class="p-6">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="w-12 h-12 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center shrink-0">
+                        <i class="fas fa-question text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">Konfirmasi Pengeluaran</h3>
+                        <p class="text-xs text-slate-500">Mohon periksa kembali data sebelum memproses.</p>
+                    </div>
+                </div>
+                
+                <div class="bg-slate-50 rounded-lg p-3 mb-6 border border-slate-100 max-h-40 overflow-y-auto">
+                    <div v-for="(item, idx) in cart" :key="idx" class="flex justify-between items-start mb-2 last:mb-0 border-b last:border-0 border-slate-100 pb-2 last:pb-0">
+                        <div>
+                            <div class="text-xs font-bold text-slate-700">{{ getCategoryName(item.category_id) }}</div>
+                            <div class="text-[10px] text-slate-500">{{ item.description }}</div>
+                        </div>
+                        <div class="text-xs font-bold text-slate-700">Rp {{ formatNumber(item.amount) }}</div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center mb-6 px-1">
+                    <span class="text-sm font-bold text-slate-500">Total Pengeluaran</span>
+                    <span class="text-xl font-bold text-red-600">Rp {{ formatNumber(totalAmount) }}</span>
+                </div>
+
+                <div class="flex gap-3">
+                    <button @click="showConfirmModal = false" :disabled="isProcessing" class="flex-1 px-4 py-3 border border-slate-300 rounded-xl text-slate-600 font-bold hover:bg-slate-50 transition-colors disabled:opacity-50">
+                        Batal
+                    </button>
+                    <button @click="processTransaction" :disabled="isProcessing" class="flex-1 px-4 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-red-200 disabled:opacity-50 disabled:shadow-none">
+                        <span v-if="isProcessing" class="animate-spin"><i class="fas fa-spinner"></i></span>
+                        <span>{{ isProcessing ? 'Memproses...' : 'Ya, Simpan' }}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div v-if="showSuccessModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all scale-100">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                    <i class="fas fa-check text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 mb-2">Pengeluaran Tersimpan!</h3>
+                <p class="text-sm text-slate-600 mb-6">Data berhasil disimpan ke sistem.<br>No. Transaksi:<br><span class="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-1 rounded text-xs break-all">{{ lastTransNumber }}</span></p>
+                <button @click="closeSuccessModal" class="w-full px-4 py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-colors shadow-lg">
+                    Selesai & Input Baru
+                </button>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -295,7 +353,11 @@ require_once '../../includes/header_finance.php';
                     proposal_ref: null
                 },
 
-                cart: []
+                cart: [],
+                showConfirmModal: false,
+                showSuccessModal: false,
+                isProcessing: false,
+                lastTransNumber: ''
             }
         },
         computed: {
@@ -429,6 +491,8 @@ require_once '../../includes/header_finance.php';
                 this.cart.splice(index, 1);
             },
             async saveTransaction() {
+                if (this.cart.length === 0) return;
+
                 const advanceTotals = {};
                 this.cart.forEach(item => {
                     if (item.advance_id) {
@@ -459,7 +523,11 @@ require_once '../../includes/header_finance.php';
                 
                 if (!warningConfirmed) return;
                 
-                if (!confirm('Simpan transaksi ini?')) return;
+                this.showConfirmModal = true;
+            },
+            async processTransaction() {
+                this.isProcessing = true;
+                const collectedTransNumbers = [];
 
                 try {
                     for (const item of this.cart) {
@@ -510,22 +578,33 @@ require_once '../../includes/header_finance.php';
                         if (!data.success) {
                             throw new Error(data.message || 'Gagal menyimpan transaksi');
                         }
+                        if (data.data && data.data.trans_number) {
+                            collectedTransNumbers.push(data.data.trans_number);
+                        }
                     }
                     
-                    alert('Transaksi Berhasil Disimpan!');
-                    this.cart = [];
-                    this.form = {
-                        unit_id: '', category_id: '', amount: '', description: '', invoice_number: '',
-                        cash_account_id: '', pic: '', receiver: '', advance_id: null
-                    };
-                    
-                    if (this.mode === 'KASBON') this.fetchSettledAdvances();
-                    if (this.mode === 'PROPOSAL') this.fetchApprovedProposals();
+                    this.lastTransNumber = collectedTransNumbers.join(', ');
+                    this.showConfirmModal = false;
+                    this.showSuccessModal = true;
                      
                  } catch (e) {
                      console.error(e);
                      alert('ERROR: ' + e.message);
+                     this.showConfirmModal = false;
+                 } finally {
+                     this.isProcessing = false;
                  }
+            },
+            closeSuccessModal() {
+                this.showSuccessModal = false;
+                this.cart = [];
+                this.form = {
+                    unit_id: '', category_id: '', amount: '', description: '', invoice_number: '',
+                    cash_account_id: '', pic: '', receiver: '', advance_id: null
+                };
+                
+                if (this.mode === 'KASBON') this.fetchSettledAdvances();
+                if (this.mode === 'PROPOSAL') this.fetchApprovedProposals();
             }
         },
         mounted() {

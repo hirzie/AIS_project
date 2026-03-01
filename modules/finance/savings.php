@@ -15,7 +15,7 @@ require_once '../../includes/header_finance.php';
                 <i class="fas fa-arrow-left text-lg"></i>
             </a>
             <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                <i class="fas fa-piggy-bank text-xl"></i>
+                <i class="fas fa-wallet text-xl"></i>
             </div>
             <div>
                 <h1 class="text-xl font-bold text-slate-800 leading-none">Tabungan Siswa</h1>
@@ -337,6 +337,67 @@ require_once '../../includes/header_finance.php';
             </div>
         </div>
     </div>
+
+    <!-- Confirm Modal -->
+    <div v-if="showConfirmModal" class="fixed inset-0 bg-black/20 z-50 flex items-center justify-center p-4 backdrop-blur-[2px]">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100 border border-slate-100">
+            <div class="p-6">
+                <div class="flex items-center gap-4 mb-4">
+                    <div class="w-12 h-12 bg-yellow-100 text-yellow-600 rounded-full flex items-center justify-center shrink-0">
+                        <i class="fas fa-question text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">Konfirmasi Transaksi</h3>
+                        <p class="text-xs text-slate-500">Mohon periksa kembali data sebelum memproses.</p>
+                    </div>
+                </div>
+                
+                <div class="bg-slate-50 rounded-lg p-3 mb-6 border border-slate-100 max-h-40 overflow-y-auto">
+                    <div v-for="(item, idx) in confirmItems" :key="idx" class="flex justify-between items-start mb-2 last:mb-0 border-b last:border-0 border-slate-100 pb-2 last:pb-0">
+                        <div>
+                            <div class="text-xs font-bold text-slate-700">{{ item.name }}</div>
+                            <div class="text-[10px] text-slate-500">{{ item.description || '-' }}</div>
+                            <div class="text-[10px] font-bold" :class="item.type === 'DEPOSIT' ? 'text-green-600' : 'text-red-600'">
+                                {{ item.type === 'DEPOSIT' ? 'SETORAN' : 'PENARIKAN' }}
+                            </div>
+                        </div>
+                        <div class="text-xs font-bold text-slate-700">Rp {{ formatNumber(item.amount) }}</div>
+                    </div>
+                </div>
+
+                <div class="flex justify-between items-center mb-6 px-1">
+                    <span class="text-sm font-bold text-slate-500">Total Nominal</span>
+                    <span class="text-xl font-bold text-blue-600">Rp {{ formatNumber(confirmTotal) }}</span>
+                </div>
+
+                <div class="flex gap-3">
+                    <button @click="cancelConfirm" :disabled="isSubmitting" class="flex-1 px-4 py-3 border border-slate-300 rounded-xl text-slate-600 font-bold hover:bg-slate-50 transition-colors disabled:opacity-50">
+                        Batal
+                    </button>
+                    <button @click="processTransaction" :disabled="isSubmitting" class="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-blue-200 disabled:opacity-50 disabled:shadow-none">
+                        <span v-if="isSubmitting" class="animate-spin"><i class="fas fa-spinner"></i></span>
+                        <span>{{ isSubmitting ? 'Memproses...' : 'Ya, Proses' }}</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div v-if="showSuccessModal" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all scale-100">
+            <div class="p-6 text-center">
+                <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce">
+                    <i class="fas fa-check text-2xl"></i>
+                </div>
+                <h3 class="text-xl font-bold text-slate-800 mb-2">Transaksi Berhasil!</h3>
+                <p class="text-sm text-slate-600 mb-6">Data tabungan telah berhasil disimpan.</p>
+                <button @click="closeSuccessModal" class="w-full px-4 py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-colors shadow-lg">
+                    Selesai
+                </button>
+            </div>
+        </div>
+    </div>
     </div>
     <!-- End of #app -->
 </div> 
@@ -371,6 +432,11 @@ createApp({
             stagingList: [],
             
             showModal: false,
+            showConfirmModal: false,
+            showSuccessModal: false,
+            confirmItems: [],
+            confirmTotal: 0,
+            confirmAction: 'SINGLE', // SINGLE or BATCH
             modalType: 'DEPOSIT', // DEPOSIT / WITHDRAW
             form: {
                 amount: '',
@@ -513,7 +579,7 @@ createApp({
                 this.$refs.batchScanInput.focus()
             }
         },
-        async submitBatch() {
+        submitBatch() {
             const items = this.batchStudents
                 .filter(s => s.input_amount && s.input_amount > 0)
                 .map(s => ({
@@ -524,35 +590,18 @@ createApp({
             
             if (items.length === 0) return alert('Belum ada nominal yang diisi')
             
-            if (!confirm(`Simpan ${items.length} transaksi tabungan dengan total Rp ${this.formatNumber(this.batchTotal)}?`)) return
-            
-            this.isSubmitting = true
-            try {
-                const payload = {
-                    items: items,
-                    type: 'DEPOSIT', // Default batch is deposit
-                    request_id: `BATCH-${this.batchClassId}-${Date.now()}`
+            this.confirmItems = items.map(s => {
+                const student = this.batchStudents.find(b => b.id === s.student_id)
+                return {
+                    name: student ? student.name : 'Unknown',
+                    amount: s.amount,
+                    description: s.description,
+                    type: 'DEPOSIT'
                 }
-                
-                const res = await fetch(window.BASE_URL + 'api/finance.php?action=save_savings_batch', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify(payload)
-                })
-                const data = await res.json()
-                
-                if (data.success) {
-                    alert('Batch berhasil disimpan!')
-                    this.clearDraft()
-                    this.fetchClassStudents() // Refresh balances
-                } else {
-                    alert(data.message || 'Gagal menyimpan batch')
-                }
-            } catch (e) {
-                alert('Error: ' + e.message)
-            } finally {
-                this.isSubmitting = false
-            }
+            })
+            this.confirmTotal = this.batchTotal
+            this.confirmAction = 'BATCH'
+            this.showConfirmModal = true
         },
         clearDraft() {
             if (this.batchClassId) {
@@ -615,26 +664,62 @@ createApp({
             this.form.description = ''
             this.showModal = true
         },
-        async submitTransaction() {
+        submitTransaction() {
             if (!this.form.amount || this.form.amount <= 0) return alert('Nominal harus diisi!')
             
             if (this.modalType === 'WITHDRAW' && Number(this.form.amount) > this.currentBalance) {
                 return alert('Saldo tidak mencukupi!')
             }
 
-            if (!confirm(`Yakin ingin ${this.modalType === 'DEPOSIT' ? 'menyetor' : 'menarik'} Rp ${this.formatNumber(this.form.amount)}?`)) return
-
+            this.confirmItems = [{
+                name: this.selectedStudent.name,
+                description: this.form.description,
+                amount: Number(this.form.amount),
+                type: this.modalType
+            }]
+            this.confirmTotal = Number(this.form.amount)
+            this.confirmAction = 'SINGLE'
+            this.showModal = false
+            this.showConfirmModal = true
+        },
+        cancelConfirm() {
+            this.showConfirmModal = false
+            if (this.confirmAction === 'SINGLE') {
+                this.showModal = true // Re-open input form
+            }
+        },
+        async processTransaction() {
             this.isSubmitting = true
             try {
-                const payload = {
-                    student_id: this.selectedStudent.id,
-                    type: this.modalType,
-                    amount: Number(this.form.amount),
-                    description: this.form.description,
-                    request_id: `SAV-${this.selectedStudent.id}-${Date.now()}`
+                let url = ''
+                let payload = {}
+
+                if (this.confirmAction === 'BATCH') {
+                    url = 'api/finance.php?action=save_savings_batch'
+                    const items = this.batchStudents
+                        .filter(s => s.input_amount && s.input_amount > 0)
+                        .map(s => ({
+                            student_id: s.id,
+                            amount: s.input_amount,
+                            description: s.note
+                        }))
+                    payload = {
+                        items: items,
+                        type: 'DEPOSIT',
+                        request_id: `BATCH-${this.batchClassId}-${Date.now()}`
+                    }
+                } else {
+                    url = 'api/finance.php?action=save_savings'
+                    payload = {
+                        student_id: this.selectedStudent.id,
+                        type: this.modalType,
+                        amount: Number(this.form.amount),
+                        description: this.form.description,
+                        request_id: `SAV-${this.selectedStudent.id}-${Date.now()}`
+                    }
                 }
                 
-                const res = await fetch(window.BASE_URL + 'api/finance.php?action=save_savings', {
+                const res = await fetch(window.BASE_URL + url, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(payload)
@@ -642,9 +727,15 @@ createApp({
                 const data = await res.json()
                 
                 if (data.success) {
-                    this.showModal = false
-                    await this.fetchSavingsData() // Tunggu refresh data selesai dulu
-                    alert('Transaksi berhasil!')
+                    this.showConfirmModal = false
+                    this.showSuccessModal = true
+                    
+                    if (this.confirmAction === 'BATCH') {
+                        this.clearDraft()
+                        this.fetchClassStudents()
+                    } else {
+                        await this.fetchSavingsData()
+                    }
                 } else {
                     alert(data.message || 'Gagal memproses transaksi')
                 }
@@ -652,6 +743,14 @@ createApp({
                 alert('Terjadi kesalahan: ' + e.message)
             } finally {
                 this.isSubmitting = false
+            }
+        },
+        closeSuccessModal() {
+            this.showSuccessModal = false
+            // Reset form for single transaction
+            if (this.confirmAction === 'SINGLE') {
+                this.form.amount = ''
+                this.form.description = ''
             }
         }
     },

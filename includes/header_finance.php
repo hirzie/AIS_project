@@ -102,8 +102,9 @@ require_login_and_module('finance');
     $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
     $isLocalEnv = (stripos($host, 'localhost') !== false || $host === '127.0.0.1');
     $isTest = (!$isLocalEnv) && (preg_match('#^/AIStest/#i', $scriptName) || stripos($serverName, 'test') !== false);
-    $envLabel = $isLocalEnv ? 'LOCAL' : ($isTest ? 'TESTING' : 'PRODUCTION');
-    $envColor = $isLocalEnv ? '#475569' : ($isTest ? '#dc2626' : '#10b981');
+    $isStaging = (!$isLocalEnv) && (preg_match('#^/AISstaging/#i', $scriptName) || stripos($serverName, 'staging') !== false || stripos($host, 'staging') !== false);
+    $envLabel = $isLocalEnv ? 'LOCAL' : ($isStaging ? 'STAGING' : ($isTest ? 'TESTING' : 'PRODUCTION'));
+    $envColor = $isLocalEnv ? '#475569' : ($isStaging ? '#f59e0b' : ($isTest ? '#dc2626' : '#10b981'));
 ?>
 <div class="hidden md:block" style="position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:1000;padding:8px 16px;border-radius:9999px;color:#fff;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.15);letter-spacing:0.4px;font-size:12px;pointer-events:none;background: <?php echo $envColor; ?>"><?php echo $envLabel; ?></div>
 

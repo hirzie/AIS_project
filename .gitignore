@@ -27,3 +27,9 @@ nginx_*.conf
 
 # Environment config
 .env
+
+# Local databases
+database.sqlite
+*.sqlite
+*.db
+ais_project.db

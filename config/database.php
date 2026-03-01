@@ -8,11 +8,18 @@ $docRoot = $_SERVER['DOCUMENT_ROOT'] ?? '';
 $serverName = $_SERVER['SERVER_NAME'] ?? '';
 $isCli = (PHP_SAPI === 'cli');
 $dirPath = __DIR__;
+$isStagingInstance = (
+    preg_match('#^/AISstaging/#i', $scriptName) ||
+    preg_match('#/AISstaging/?$#i', $docRoot) ||
+    (stripos($serverName, 'staging') !== false) ||
+    (stripos($dirPath, 'AISstaging') !== false)
+);
 $isTestInstance = (
     preg_match('#^/AIStest/#i', $scriptName) ||
     preg_match('#/AIStest/?$#i', $docRoot) ||
     (stripos($serverName, 'test') !== false) ||
-    (stripos($dirPath, 'AIStest') !== false)
+    (stripos($dirPath, 'AIStest') !== false) ||
+    $isStagingInstance
 );
 $envDb = getenv('DB_NAME') ?: null;
 $dbname = $envDb ?: ($isTestInstance ? 'aiscore_test' : 'aiscore');

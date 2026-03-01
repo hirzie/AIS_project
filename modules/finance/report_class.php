@@ -295,6 +295,14 @@ require_once '../../includes/header_finance.php';
                         this.years = data.data.years;
                         this.units = data.data.units;
                         this.paymentTypes = data.data.paymentTypes;
+                        
+                        // Auto-select active year
+                        const activeYear = this.years.find(y => y.status === 'ACTIVE');
+                        if (activeYear) {
+                            this.filter.academic_year_id = activeYear.id;
+                        } else if (this.years.length > 0) {
+                            this.filter.academic_year_id = this.years[0].id;
+                        }
                     }
                 } catch (e) {}
             },
@@ -310,15 +318,19 @@ require_once '../../includes/header_finance.php';
                         this.classes = data.data;
                     } else {
                         console.error("API Error:", data.message);
+                        this.classes = [];
                     }
-                } catch (e) {}
+                } catch (e) {
+                    console.error("Fetch Error:", e);
+                    this.classes = [];
+                }
             },
             async fetchReport() {
                 this.reportData = [];
                 this.searched = true;
                 try {
                     const params = new URLSearchParams({
-                        action: this.filter.payment_type_id === 'ALL' ? 'get_class_report_all' : 'get_class_report_single',
+                        action: 'get_class_report',
                         academic_year_id: this.filter.academic_year_id,
                         unit_id: this.filter.unit_id,
                         class_id: this.filter.class_id,

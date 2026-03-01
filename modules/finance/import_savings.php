@@ -10,7 +10,7 @@ require_once '../../includes/header_finance.php';
                 <i class="fas fa-arrow-left text-lg"></i>
             </a>
             <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-200">
-                <i class="fas fa-piggy-bank text-xl"></i>
+                <i class="fas fa-wallet text-xl"></i>
             </div>
             <div>
                 <h1 class="text-xl font-bold text-slate-800 leading-none">Import Saldo Tabungan</h1>

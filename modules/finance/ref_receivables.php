@@ -16,6 +16,100 @@ require_once '../../includes/header_finance.php';
             <span class="text-xs text-slate-500 font-medium">Pengaturan Pos Pendapatan</span>
         </div>
     </div>
+
+    <!-- Modal Form -->
+    <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden transform transition-all scale-100">
+            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-lg text-slate-800">{{ form.id ? 'Edit' : 'Tambah' }} Jenis Penerimaan</h3>
+                <button @click="showModal = false" class="text-slate-400 hover:text-slate-600 transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+                <!-- Basic Info -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2">
+                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Nama Penerimaan</label>
+                        <input v-model="form.name" type="text" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:border-blue-500 outline-none" placeholder="Contoh: SPP Bulanan">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Kode Unik</label>
+                        <input v-model="form.code" type="text" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:border-blue-500 outline-none font-mono uppercase" placeholder="SPP">
+                    </div>
+                    <div v-if="form.category.includes('MANDATORY')">
+                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Nominal Default</label>
+                        <input v-model="form.default_amount" type="number" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:border-blue-500 outline-none text-right">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Kategori</label>
+                        <select v-model="form.category" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:border-blue-500 outline-none bg-white">
+                            <option value="MANDATORY_STUDENT">Iuran Wajib Siswa</option>
+                            <option value="VOLUNTARY_STUDENT">Iuran Sukarela Siswa</option>
+                            <option value="MANDATORY_PROSPECT">Iuran Wajib Calon Siswa</option>
+                            <option value="VOLUNTARY_PROSPECT">Iuran Sukarela Calon Siswa</option>
+                            <option value="OTHER">Penerimaan Lainnya</option>
+                        </select>
+                    </div>
+                    <div v-if="form.category.includes('MANDATORY')">
+                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">Tipe Periode</label>
+                        <select v-model="form.type" class="w-full border border-slate-300 rounded-lg px-3 py-2 focus:border-blue-500 outline-none bg-white">
+                            <option value="MONTHLY">Bulanan (Rutin)</option>
+                            <option value="YEARLY">Tahunan (Sekali)</option>
+                            <option value="VOLUNTARY">Sukarela (Bebas)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Account Mapping -->
+                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <h4 class="font-bold text-xs text-slate-400 uppercase tracking-wider mb-2 border-b border-slate-200 pb-2">Mapping Akun (Jurnal Otomatis)</h4>
+                    
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Akun Kas/Bank (Debit saat terima uang)</label>
+                        <select v-model="form.account_cash_id" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                            <option value="">-- Pilih Akun Kas --</option>
+                            <option v-for="a in assetAccounts" :key="a.id" :value="a.id">{{ a.code }} - {{ a.name }}</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Akun Pendapatan (Kredit)</label>
+                        <select v-model="form.account_revenue_id" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                            <option value="">-- Pilih Akun Pendapatan --</option>
+                            <option v-for="a in revenueAccounts" :key="a.id" :value="a.id">{{ a.code }} - {{ a.name }}</option>
+                        </select>
+                    </div>
+
+                    <div v-if="form.category.includes('MANDATORY')">
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Akun Piutang (Debit saat tagihan)</label>
+                        <select v-model="form.account_receivable_id" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                            <option value="">-- Pilih Akun Piutang --</option>
+                            <option v-for="a in receivableAccounts" :key="a.id" :value="a.id">{{ a.code }} - {{ a.name }}</option>
+                        </select>
+                        <p class="text-[10px] text-slate-400 mt-1">* Wajib diisi jika menggunakan sistem tagihan/piutang.</p>
+                    </div>
+
+                    <div v-if="form.category.includes('MANDATORY')">
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Akun Potongan/Diskon (Debit)</label>
+                        <select v-model="form.account_discount_id" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                            <option value="">-- Tidak Ada Diskon --</option>
+                            <option v-for="a in revenueAccounts" :key="a.id" :value="a.id">{{ a.code }} - {{ a.name }}</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+                <button @click="showModal = false" class="px-4 py-2 text-slate-600 font-bold hover:bg-slate-200 rounded-lg transition-colors">Batal</button>
+                <button @click="saveData" class="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all">Simpan</button>
+            </div>
+        </div>
+    </div>
 </nav>
 
 <main class="flex-1 overflow-hidden flex flex-col md:flex-row bg-slate-50 relative">
@@ -53,7 +147,9 @@ require_once '../../includes/header_finance.php';
         </div>
     </div>
 
-    <div class="flex-1 flex flex-col h-full bg-slate-50 overflow-hidden">
+    <!-- Right Side Content -->
+    <div class="flex-1 flex flex-col h-full overflow-hidden">
+        <!-- Header -->
         <div class="p-6 flex justify-between items-center">
             <h2 class="text-xl font-bold text-slate-800">Daftar Pos Penerimaan</h2>
             <div class="flex gap-2">
@@ -64,6 +160,7 @@ require_once '../../includes/header_finance.php';
             </div>
         </div>
 
+        <!-- Table Content -->
         <div class="flex-1 overflow-y-auto px-6 pb-6">
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <table class="w-full text-sm text-left">
@@ -96,7 +193,7 @@ require_once '../../includes/header_finance.php';
                                         <span class="w-20 font-bold text-slate-500">Piutang:</span>
                                         <span class="bg-red-50 px-2 py-0.5 rounded text-red-700 font-mono">{{ getAccountCode(item.account_receivable_id) }}</span>
                                     </div>
-                                    <div v-if="item.account_discount_id" class="flex items-center gap-2 text-xs">
+                                    <div v-if="item.account_discount_id && item.category.includes('MANDATORY')" class="flex items-center gap-2 text-xs">
                                         <span class="w-20 font-bold text-slate-500">Diskon:</span>
                                         <span class="bg-yellow-50 px-2 py-0.5 rounded text-yellow-700 font-mono">{{ getAccountCode(item.account_discount_id) }}</span>
                                     </div>
@@ -139,6 +236,16 @@ require_once '../../includes/header_finance.php';
             filteredList() {
                 if (this.filterCategory === 'ALL') return this.list;
                 return this.list.filter(item => item.category === this.filterCategory);
+            },
+            assetAccounts() {
+                return this.accounts.filter(a => a.type === 'ASSET');
+            },
+            revenueAccounts() {
+                return this.accounts.filter(a => a.type === 'REVENUE');
+            },
+            receivableAccounts() {
+                // Filter accounts that are ASSET type and name contains 'Piutang'
+                return this.accounts.filter(a => a.type === 'ASSET' && a.name.toLowerCase().includes('piutang'));
             }
         },
         methods: {

@@ -1,38 +1,10 @@
 <?php
+require_once '../../includes/guard.php';
+require_login_and_module('finance');
 require_once '../../config/database.php';
+require_once '../../includes/header_finance.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SekolahOS - Keuangan</title>
-    <?php
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        if (strpos($host, 'localhost') !== false || $host === '127.0.0.1') {
-            $port = $_SERVER['SERVER_PORT'] ?? 80;
-            $baseUrl = ($port == 8000) ? '/' : '/AIS/';
-        } else {
-            $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-            $baseUrl = (stripos($scriptName, '/AIS/') !== false) ? '/AIS/' : '/';
-        }
-    ?>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="<?php echo $baseUrl; ?>assets/js/vue.global.js"></script>
-    <link href="<?php echo $baseUrl; ?>assets/css/fontawesome.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        [v-cloak] { display: none !important; }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-    </style>
-</head>
-<body class="text-slate-800">
 
-<div id="trialBalanceApp" class="flex flex-col h-screen bg-slate-50" v-cloak>
     <nav class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 z-20 shadow-sm flex-none">
         <div class="flex items-center gap-3">
             <a href="<?php echo $baseUrl; ?>modules/finance/dashboard.php?tab=reports" class="w-10 h-10 bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center justify-center text-slate-600 transition-colors">
@@ -232,12 +204,7 @@ require_once '../../config/database.php';
         },
         methods: {
             getBaseUrl() {
-                let baseUrl = window.BASE_URL || '/';
-                if (baseUrl === '/' || !baseUrl) {
-                    const m = (window.location.pathname || '').match(/^\/(AIS|AIStest)\//i);
-                    baseUrl = m ? `/${m[1]}/` : '/';
-                }
-                return baseUrl;
+                return window.BASE_URL;
             },
             async fetchInit() {
                 try {
@@ -338,7 +305,7 @@ require_once '../../config/database.php';
             this.fetchData();
             this.fetchFoundationLogs();
         }
-    }).mount('#trialBalanceApp')
+    }).mount('#app')
 </script>
 </body>
 </html>

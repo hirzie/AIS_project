@@ -31,8 +31,11 @@ require_once '../../includes/header_finance.php';
              <button @click="filterType = 'ASSET'" :class="filterType === 'ASSET' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-50'" class="w-full text-left px-4 py-2.5 rounded-lg text-sm transition-colors">
                  HARTA (Assets)
              </button>
+             <button @click="filterType = 'RECEIVABLE'" :class="filterType === 'RECEIVABLE' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-50'" class="w-full text-left px-4 py-2.5 rounded-lg text-sm transition-colors">
+                 PIUTANG (Receivables)
+             </button>
              <button @click="filterType = 'LIABILITY'" :class="filterType === 'LIABILITY' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-50'" class="w-full text-left px-4 py-2.5 rounded-lg text-sm transition-colors">
-                 KEWAJIBAN (Liabilities)
+                 HUTANG / KEWAJIBAN (Liabilities)
              </button>
              <button @click="filterType = 'EQUITY'" :class="filterType === 'EQUITY' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-50'" class="w-full text-left px-4 py-2.5 rounded-lg text-sm transition-colors">
                  MODAL (Equity)
@@ -41,7 +44,7 @@ require_once '../../includes/header_finance.php';
                  PENDAPATAN (Revenue)
              </button>
              <button @click="filterType = 'EXPENSE'" :class="filterType === 'EXPENSE' ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-600 hover:bg-slate-50'" class="w-full text-left px-4 py-2.5 rounded-lg text-sm transition-colors">
-                 BEBAN (Expenses)
+                 BIAYA / BEBAN (Expenses)
              </button>
         </div>
     </div>
@@ -105,11 +108,11 @@ require_once '../../includes/header_finance.php';
                     <div>
                         <label class="block text-xs font-bold text-slate-500 mb-1">Kategori</label>
                         <select v-model="form.type" class="w-full border rounded px-3 py-2 text-sm bg-white">
-                            <option value="ASSET">HARTA (Asset)</option>
-                            <option value="LIABILITY">KEWAJIBAN (Liability)</option>
+                            <option value="ASSET">HARTA / PIUTANG (Assets)</option>
+                            <option value="LIABILITY">HUTANG / KEWAJIBAN (Liabilities)</option>
                             <option value="EQUITY">MODAL (Equity)</option>
                             <option value="REVENUE">PENDAPATAN (Revenue)</option>
-                            <option value="EXPENSE">BEBAN (Expense)</option>
+                            <option value="EXPENSE">BIAYA / BEBAN (Expenses)</option>
                         </select>
                     </div>
                     <div>
@@ -146,6 +149,13 @@ require_once '../../includes/header_finance.php';
         computed: {
             filteredAccounts() {
                 if (this.filterType === 'ALL') return this.accounts;
+                if (this.filterType === 'RECEIVABLE') {
+                    return this.accounts.filter(a => a.type === 'ASSET' && a.name.toLowerCase().includes('piutang'));
+                }
+                if (this.filterType === 'ASSET') {
+                    // Exclude Piutang from generic ASSET list (since they have their own tab)
+                    return this.accounts.filter(a => a.type === 'ASSET' && !a.name.toLowerCase().includes('piutang'));
+                }
                 return this.accounts.filter(a => a.type === this.filterType);
             }
         },

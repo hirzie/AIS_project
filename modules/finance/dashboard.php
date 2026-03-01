@@ -99,7 +99,7 @@ require_once '../../includes/header_finance.php';
             <div class="relative z-10 flex flex-col h-full">
                 <a href="<?php echo $baseUrl; ?>modules/finance/savings.php" class="block">
                     <div class="w-14 h-14 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center text-2xl mb-6 shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                        <i class="fas fa-piggy-bank"></i>
+                        <i class="fas fa-wallet"></i>
                     </div>
                     <h3 class="text-xl font-bold text-slate-800 mb-2">Tabungan Siswa</h3>
                     <p class="text-sm text-slate-500 mb-4">Kelola simpanan dan penarikan tabungan siswa.</p>
@@ -122,7 +122,7 @@ require_once '../../includes/header_finance.php';
         <div class="group bg-white rounded-2xl p-6 shadow-sm border border-slate-100 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
             <div class="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-[100px] -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
             <div class="relative z-10 flex flex-col h-full">
-                <a href="<?php echo $baseUrl; ?>modules/finance/dashboard.php?tab=reports" class="block">
+                <a href="<?php echo $baseUrl; ?>modules/finance/report_trial_balance.php" class="block">
                     <div class="w-14 h-14 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center text-2xl mb-6 shadow-sm group-hover:bg-purple-600 group-hover:text-white transition-colors">
                         <i class="fas fa-chart-pie"></i>
                     </div>
@@ -135,8 +135,8 @@ require_once '../../includes/header_finance.php';
                     <a href="<?php echo $baseUrl; ?>modules/finance/report_trial_balance.php" class="flex items-center text-xs font-medium text-slate-500 hover:text-purple-600 transition-colors">
                         <i class="fas fa-balance-scale w-5 text-center"></i> Neraca Percobaan
                     </a>
-                    <a href="<?php echo $baseUrl; ?>modules/finance/report_expense.php" class="flex items-center text-xs font-medium text-slate-500 hover:text-purple-600 transition-colors">
-                        <i class="fas fa-chart-bar w-5 text-center"></i> Laporan Pengeluaran
+                    <a href="<?php echo $baseUrl; ?>modules/finance/report_operational.php" class="flex items-center text-xs font-medium text-slate-500 hover:text-purple-600 transition-colors">
+                        <i class="fas fa-chart-line w-5 text-center"></i> Laporan Kustom
                     </a>
                     <a href="#" class="flex items-center text-xs font-medium text-slate-500 hover:text-purple-600 transition-colors">
                         <i class="fas fa-file-invoice w-5 text-center"></i> Jurnal Umum
